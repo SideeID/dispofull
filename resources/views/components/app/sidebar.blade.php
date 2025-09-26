@@ -10,7 +10,7 @@
         @keydown.escape.window="sidebarOpen = false">
 
         <!-- Sidebar header -->
-        <div class="flex justify-between mb-10 pr-3 sm:px-2">
+        <div class="flex justify-between mb-6 pr-3 sm:px-2 relative">
             <!-- Close button -->
             <button class="lg:hidden text-gray-500 hover:text-gray-400" @click.stop="sidebarOpen = !sidebarOpen"
                 aria-controls="sidebar" :aria-expanded="sidebarOpen">
@@ -20,13 +20,20 @@
                 </svg>
             </button>
             <!-- Logo -->
-            <a class="flex items-center" href="/">
-                <img class="h-10 w-auto mr-3" src="{{ asset('images/logo.svg') }}" alt="Logo">
+            <a class="flex items-center group" href="/">
+                <div class="h-11 w-11 mr-3 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow ring-1 ring-orange-400/30 relative overflow-hidden">
+                    <span class="drop-shadow-sm">SB</span>
+                    <span class="absolute inset-0 opacity-0 group-hover:opacity-100 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_60%)] transition"></span>
+                </div>
                 <div class="lg:hidden lg:sidebar-expanded:block 2xl:block">
-                    <span class="text-gray-800 dark:text-gray-100 font-bold text-sm block">Clan'a Private</span>
-                    <span class="text-gray-800 dark:text-gray-100 font-bold text-sm block"></span>
+                    <span class="text-gray-800 dark:text-gray-100 font-bold text-[13px] tracking-wide block">Surat Bakrie</span>
+                    <span class="text-[10px] font-medium text-amber-600 dark:text-amber-400">Internal Beta</span>
                 </div>
             </a>
+        </div>
+
+        <div class="mb-6 -mx-4 px-4">
+            <div class="h-px w-full bg-gradient-to-r from-transparent via-gray-200 dark:via-gray-700/60 to-transparent"></div>
         </div>
 
         <!-- Links -->
@@ -38,49 +45,59 @@
                 </h3>
                 @php
                     $user = Auth::user();
-                    // Helper closure untuk status aktif
+                    // Helper active state
                     $isActive = function($patterns){
                         foreach((array)$patterns as $p){ if(request()->routeIs($p)) return true; }
                         return false;
                     };
-                    // Helper generate li
-                    $navItem = function($label,$icon,$route=null,$patterns=null) use ($isActive){
+                    // Enhanced nav item with optional badge
+                    $navItem = function($label,$icon,$route=null,$patterns=null,$badge=null,$badgeColor='bg-amber-500/10 text-amber-600 dark:text-amber-300 dark:bg-amber-400/10') use ($isActive){
                         $patterns = $patterns ?? $route;
                         $active = $route && $isActive((array)$patterns);
-                        $classes = 'pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 transition-colors';
-                        $activeBg = $active ? ' from-orange-500/[0.12] dark:from-orange-500/[0.24] to-orange-500/[0.04]' : '';
-                        $textClass = $active ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-100';
-                        $iconClass = $active ? 'text-orange-500' : 'text-gray-400 dark:text-gray-500';
-                        $hover = $active ? '' : 'hover:text-gray-900 dark:hover:text-white';
+                        $base = 'relative group pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 transition-colors flex items-center';
+                        $activeClasses = $active ? 'bg-gradient-to-r from-orange-500/15 via-orange-400/10 to-transparent ring-1 ring-orange-400/30 dark:from-orange-500/25 dark:via-orange-500/10 dark:ring-orange-400/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700/40';
+                        $textClass = 'text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200';
+                        $iconWrap = 'w-8 h-8 rounded-xl flex items-center justify-center text-[13px]';
+                        $iconState = $active ? 'text-orange-600 dark:text-amber-400 bg-orange-500/10 dark:bg-orange-500/20' : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700/60 group-hover:text-gray-600 group-hover:bg-gray-200/80 dark:group-hover:text-gray-300';
+                        $labelColor = $active ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-100 group-hover:text-gray-900 dark:group-hover:text-white';
                         $url = $route && Route::has($route) ? route($route) : '#';
-                        return "<li class=\"bg-linear-to-r$activeBg $classes\"><a href=\"$url\" class=\"block truncate $hover $textClass\"><div class=\"flex items-center\"><i data-feather=\"$icon\" class=\"shrink-0 $iconClass\" width=\"16\" height=\"16\"></i><span class=\"text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200\">$label</span></div></a></li>"; };
+                        $badgeHtml = $badge !== null ? "<span class=\"ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full $badgeColor\">$badge</span>" : '';
+                        $indicator = $active ? '<span class="absolute inset-y-1 left-0 w-1 rounded-r bg-gradient-to-b from-amber-500 to-orange-400 shadow"></span>' : '';
+                        return <<<HTML
+                            <li>$indicator<a href="$url" class="$base $activeClasses">
+                                <span class="$iconWrap $iconState"><i data-feather="$icon" class="w-4 h-4"></i></span>
+                                <span class="$textClass $labelColor">$label</span>
+                                $badgeHtml
+                            </a></li>
+                        HTML;
+                    };
                 @endphp
                 <ul class="mt-3">
                     {{-- Common / Role-specific navigation --}}
                     @if($user->role === 'admin')
-                        {!! $navItem('Dashboard','home','dashboard') !!}
-                        <div class="mt-4 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600">Manajemen</div>
-                        {!! $navItem('Pengguna','users','admin.users.index',['admin.users.*']) !!}
-                        {!! $navItem('Departemen','layers','admin.departments.index',['admin.departments.*']) !!}
-                        {!! $navItem('Jenis Surat','tag','admin.letter-types.index',['admin.letter-types.*']) !!}
-                        {!! $navItem('Template Surat','file-text','admin.templates.index',['admin.templates.*']) !!}
-                        {!! $navItem('Monitoring Sistem','activity','admin.monitoring',['admin.monitoring','horizon.*','telescope']) !!}
+                        {!! $navItem('Dashboard','home','dashboard',null,null) !!}
+                        <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Manajemen</div>
+                        {!! $navItem('Pengguna','users','admin.users.index',['admin.users.*'],12) !!}
+                        {!! $navItem('Departemen','layers','admin.departments.index',['admin.departments.*'],6,'bg-blue-500/10 text-blue-600 dark:text-blue-300 dark:bg-blue-400/10') !!}
+                        {!! $navItem('Jenis Surat','tag','admin.letter-types.index',['admin.letter-types.*'],14,'bg-purple-500/10 text-purple-600 dark:text-purple-300 dark:bg-purple-400/10') !!}
+                        {!! $navItem('Template Surat','file-text','admin.templates.index',['admin.templates.*'],3,'bg-teal-500/10 text-teal-600 dark:text-teal-300 dark:bg-teal-400/10') !!}
+                        {!! $navItem('Monitoring Sistem','activity','admin.monitoring',['admin.monitoring','horizon.*','telescope'],null) !!}
                         {!! $navItem('Pengaturan','settings','admin.settings',['admin.settings*']) !!}
                     @elseif($user->role === 'rektorat')
                         {!! $navItem('Dashboard','home','dashboard') !!}
-                        <div class="mt-4 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600">Surat & Tugas</div>
-                        {!! $navItem('Surat Masuk','inbox','letters.incoming.index',['letters.incoming.*']) !!}
-                        {!! $navItem('Surat Tugas','file-text','letters.tasks.index',['letters.tasks.index','letters.tasks.show']) !!}
-                        {!! $navItem('Inbox Surat Tugas','mail','letters.tasks.inbox',['letters.tasks.inbox']) !!}
+                        <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Surat & Tugas</div>
+                        {!! $navItem('Surat Masuk','inbox','letters.incoming.index',['letters.incoming.*'],18) !!}
+                        {!! $navItem('Surat Tugas','file-text','letters.tasks.index',['letters.tasks.index','letters.tasks.show'],11,'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 dark:bg-indigo-400/10') !!}
+                        {!! $navItem('Inbox Surat Tugas','mail','letters.tasks.inbox',['letters.tasks.inbox'],4,'bg-rose-500/10 text-rose-600 dark:text-rose-300 dark:bg-rose-400/10') !!}
                         {!! $navItem('Buat / Tindaklanjuti ST','edit','letters.tasks.create',['letters.tasks.create','letters.tasks.edit']) !!}
-                        {!! $navItem('History Disposisi','clock','dispositions.history',['dispositions.history']) !!}
-                        {!! $navItem('Arsip Surat Tugas','archive','letters.tasks.archive',['letters.tasks.archive']) !!}
+                        {!! $navItem('History Disposisi','clock','dispositions.history',['dispositions.history'],9,'bg-amber-500/10 text-amber-600 dark:text-amber-300 dark:bg-amber-400/10') !!}
+                        {!! $navItem('Arsip Surat Tugas','archive','letters.tasks.archive',['letters.tasks.archive'],142,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}
                     @elseif($user->role === 'unit_kerja')
                         {!! $navItem('Dashboard','home','dashboard') !!}
-                        <div class="mt-4 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600">Surat</div>
-                        {!! $navItem('Surat Masuk','inbox','letters.incoming.index',['letters.incoming.*']) !!}
+                        <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Surat</div>
+                        {!! $navItem('Surat Masuk','inbox','letters.incoming.index',['letters.incoming.*'],6) !!}
                         {!! $navItem('Buat Surat','file-plus','letters.outgoing.create',['letters.outgoing.create','letters.outgoing.edit']) !!}
-                        {!! $navItem('Arsip Surat Tugas','archive','letters.tasks.archive',['letters.tasks.archive']) !!}
+                        {!! $navItem('Arsip Surat Tugas','archive','letters.tasks.archive',['letters.tasks.archive'],54,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}
                     @endif
                 </ul>
             </div>
