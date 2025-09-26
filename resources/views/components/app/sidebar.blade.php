@@ -1,17 +1,13 @@
 <div class="min-w-fit">
-    <!-- Sidebar backdrop (mobile only) -->
     <div class="fixed inset-0 bg-gray-900/30 z-40 lg:hidden lg:z-auto transition-opacity duration-200"
         :class="sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'" aria-hidden="true" x-cloak></div>
 
-    <!-- Sidebar -->
     <div id="sidebar"
         class="flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-white dark:bg-gray-800 p-4 transition-all duration-200 ease-in-out {{ $variant === 'v2' ? 'border-r border-gray-200 dark:border-gray-700/60' : 'rounded-r-2xl shadow-xs' }}"
         :class="sidebarOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-64'" @click.outside="sidebarOpen = false"
         @keydown.escape.window="sidebarOpen = false">
 
-        <!-- Sidebar header -->
         <div class="flex justify-between mb-6 pr-3 sm:px-2 relative">
-            <!-- Close button -->
             <button class="lg:hidden text-gray-500 hover:text-gray-400" @click.stop="sidebarOpen = !sidebarOpen"
                 aria-controls="sidebar" :aria-expanded="sidebarOpen">
                 <span class="sr-only">Close sidebar</span>
@@ -19,7 +15,6 @@
                     <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
                 </svg>
             </button>
-            <!-- Logo -->
             <a class="flex items-center group" href="/">
                 <div class="h-11 w-11 mr-3 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow ring-1 ring-orange-400/30 relative overflow-hidden">
                     <span class="drop-shadow-sm">SB</span>
@@ -36,7 +31,6 @@
             <div class="h-px w-full bg-gradient-to-r from-transparent via-gray-200 dark:via-gray-700/60 to-transparent"></div>
         </div>
 
-        <!-- Links -->
         <div class="space-y-8">
             <div>
                 <h3 class="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3">
@@ -45,12 +39,10 @@
                 </h3>
                 @php
                     $user = Auth::user();
-                    // Helper active state
                     $isActive = function($patterns){
                         foreach((array)$patterns as $p){ if(request()->routeIs($p)) return true; }
                         return false;
                     };
-                    // Enhanced nav item with optional badge
                     $navItem = function($label,$icon,$route=null,$patterns=null,$badge=null,$badgeColor='bg-amber-500/10 text-amber-600 dark:text-amber-300 dark:bg-amber-400/10') use ($isActive){
                         $patterns = $patterns ?? $route;
                         $active = $route && $isActive((array)$patterns);
@@ -62,7 +54,7 @@
                         $labelColor = $active ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-100 group-hover:text-gray-900 dark:group-hover:text-white';
                         $url = $route && Route::has($route) ? route($route) : '#';
                         $badgeHtml = $badge !== null ? "<span class=\"ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full $badgeColor\">$badge</span>" : '';
-                        $indicator = $active ? '<span class="absolute inset-y-1 left-0 w-1 rounded-r bg-gradient-to-b from-amber-500 to-orange-400 shadow"></span>' : '';
+                        $indicator = '';
                         return <<<HTML
                             <li>$indicator<a href="$url" class="$base $activeClasses">
                                 <span class="$iconWrap $iconState"><i data-feather="$icon" class="w-4 h-4"></i></span>
@@ -103,7 +95,6 @@
             </div>
         </div>
 
-        <!-- Expand / collapse button -->
         <div class="pt-3 hidden lg:inline-flex 2xl:hidden justify-end mt-auto">
             <div class="w-12 pl-4 pr-3 py-2">
                 <button
