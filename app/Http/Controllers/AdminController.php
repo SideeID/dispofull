@@ -6,32 +6,23 @@ use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
-    public function dataNasabah()
+    public function pengguna()
     {
-        return view('pages.admin.data-nasabah');
+        return view('pages.admin.pengguna.index');
     }
 
-    public function dataPetugas()
+    public function departemen()
     {
-        return view('pages.admin.data-petugas');
+        return view('pages.admin.departemen.index');
     }
 
-    public function dataSampah()
+    public function jenisSurat()
     {
-        return view('pages.admin.data-sampah');
+        return view('pages.admin.jenis-surat.index');
     }
 
-    public function setoran()
+    public function monitoring()
     {
-        return view('pages.admin.setoran');
-    }
-
-    public function tarikSaldo()
-    {
-        return view('pages.admin.tarik-saldo');
-    }
-    public function iuran()
-    {
-        return view('pages.admin.iuran');
+        return view('pages.admin.monitoring.index');
     }
 }

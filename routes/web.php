@@ -42,13 +42,8 @@ Route::middleware(['auth:sanctum', 'verified', 'role:admin'])->group(function ()
     Route::get('/json-data-feed', [DataFeedController::class, 'getDataFeed'])->name('json_data_feed');
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/data-nasabah', [AdminController::class, 'dataNasabah'])->name('data-nasabah');
-    Route::get('/dashboard/data-petugas', [AdminController::class, 'dataPetugas'])->name('data-petugas');
-    Route::get('/dashboard/data-sampah', [AdminController::class, 'dataSampah'])->name('data-sampah');
-    Route::get('/dashboard/setoran', [AdminController::class, 'setoran'])->name('setoran');
-    Route::get('/dashboard/tarik-saldo', [AdminController::class, 'tarikSaldo'])->name('tarik-saldo');
-    Route::get('/dashboard/iuran', [AdminController::class, 'iuran'])->name('iuran');
-    Route::get('/manajemen-jadwal', [JadwalController::class, 'index'])->name('manajemen-jadwal');
-    Route::get('/upload-materi', [MateriController::class, 'index'])->name('upload-materi');
-    Route::get('/forum-diskusi', [ForumController::class, 'index'])->name('forum-diskusi');
+    Route::get('/pengguna', [AdminController::class, 'pengguna'])->name('dashboard.pengguna');
+    Route::get('/departemen', [AdminController::class, 'departemen'])->name('dashboard.departemen');
+    Route::get('/jenis-surat', [AdminController::class, 'jenisSurat'])->name('dashboard.jenis-surat');
+    Route::get('/monitoring', [AdminController::class, 'monitoring'])->name('dashboard.monitoring');
 });
