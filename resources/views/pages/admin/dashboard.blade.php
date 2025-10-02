@@ -63,11 +63,11 @@
             @foreach ($cards as $c)
                 <div class="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
                     <div
-                        class="relative overflow-hidden rounded-2xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 p-5 flex flex-col gap-4">
+                        class="relative overflow-hidden rounded-lg bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 p-5 flex flex-col gap-4">
                         <div class="flex items-start justify-between">
                             <div class="text-xs font-medium tracking-wide text-gray-500 dark:text-gray-400 uppercase">
                                 {{ $c['label'] }}</div>
-                            <div class="rounded-xl p-2 bg-gradient-to-tr {{ $c['color'] }} text-white shadow">
+                            <div class="rounded-lg p-2 bg-gradient-to-tr {{ $c['color'] }} text-white shadow">
                                 <i data-feather="{{ $c['icon'] }}" class="w-4 h-4"></i>
                             </div>
                         </div>
@@ -75,7 +75,7 @@
                             <div class="text-3xl font-semibold text-gray-800 dark:text-gray-100">{{ $c['value'] }}
                             </div>
                             <div
-                                class="text-[11px] px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium">
+                                class="text-[11px] px-2 py-1 rounded-lg bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium">
                                 {{ $c['delta'] }}</div>
                         </div>
                     </div>
@@ -86,7 +86,7 @@
         <div class="grid grid-cols-12 gap-8">
             <div class="col-span-12 lg:col-span-7 xl:col-span-8 space-y-6">
                 <div
-                    class="rounded-2xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 overflow-hidden">
+                    class="rounded-lg bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 overflow-hidden">
                     <div
                         class="px-6 py-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-700/60">
                         <h2 class="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2"><i
@@ -161,7 +161,7 @@
                                                 ];
                                             @endphp
                                             <span
-                                                class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $badgeColors[$row['status']] ?? 'bg-gray-100 text-gray-600' }}">{{ $row['status'] }}</span>
+                                                class="px-2 py-0.5 rounded-lg text-[11px] font-medium {{ $badgeColors[$row['status']] ?? 'bg-gray-100 text-gray-600' }}">{{ $row['status'] }}</span>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -170,7 +170,7 @@
                     </div>
                 </div>
 
-                <div class="rounded-2xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700">
+                <div class="rounded-lg bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700">
                     <div
                         class="px-6 py-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-700/60">
                         <h2 class="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2"><i
@@ -219,7 +219,7 @@
                             <li class="px-6 py-4 hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition">
                                 <div class="flex items-start gap-3">
                                     <div
-                                        class="mt-1 w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center text-[11px] font-semibold shadow">
+                                        class="mt-1 w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center text-[11px] font-semibold shadow">
                                         DP</div>
                                     <div class="flex-1 min-w-0">
                                         <p class="text-gray-800 dark:text-gray-100 font-medium line-clamp-1">
@@ -232,7 +232,7 @@
                                                 class="text-[11px] font-medium {{ $priorityColor[$d['priority']] ?? 'text-gray-500' }}">Prioritas:
                                                 {{ $d['priority'] }}</span>
                                             <span
-                                                class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $statusColor[$d['status']] ?? 'bg-gray-100 text-gray-600' }}">{{ $d['status'] }}</span>
+                                                class="px-2 py-0.5 rounded-lg text-[11px] font-medium {{ $statusColor[$d['status']] ?? 'bg-gray-100 text-gray-600' }}">{{ $d['status'] }}</span>
                                         </div>
                                     </div>
                                     <button class="text-gray-400 hover:text-amber-600"><i data-feather="more-vertical"
@@ -245,7 +245,7 @@
             </div>
 
             <div class="col-span-12 lg:col-span-5 xl:col-span-4 space-y-6">
-                <div class="rounded-2xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 p-5">
+                <div class="rounded-lg bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 p-5">
                     <h2 class="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2 mb-4"><i
                             data-feather="zap" class="w-4 h-4 text-amber-500"></i> Aksi Cepat</h2>
                     <div class="grid grid-cols-2 gap-3 text-sm">
@@ -281,7 +281,7 @@
                         @endphp
                         @foreach ($actions as $a)
                             <a href="#"
-                                class="group rounded-xl ring-1 ring-gray-200 dark:ring-gray-700 bg-white dark:bg-gray-800 hover:bg-gradient-to-tr {{ $a['color'] }} hover:text-white p-3 flex flex-col gap-3 transition relative overflow-hidden">
+                                class="group rounded-lg ring-1 ring-gray-200 dark:ring-gray-700 bg-white dark:bg-gray-800 hover:bg-gradient-to-tr {{ $a['color'] }} hover:text-white p-3 flex flex-col gap-3 transition relative overflow-hidden">
                                 <div class="flex items-center justify-between">
                                     <div
                                         class="rounded-lg p-2 bg-gradient-to-tr {{ $a['color'] }} text-white shadow">
@@ -297,7 +297,7 @@
                     </div>
                 </div>
 
-                <div class="rounded-2xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 p-5">
+                <div class="rounded-lg bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 p-5">
                     <h2 class="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2 mb-4"><i
                             data-feather="pen-tool" class="w-4 h-4 text-teal-500"></i> Tanda Tangan Digital</h2>
                     <ul class="space-y-4 text-sm">
@@ -331,7 +331,7 @@
                             <li class="group">
                                 <div class="flex items-start gap-3">
                                     <div
-                                        class="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-500 text-white flex items-center justify-center text-[10px] font-semibold shadow">
+                                        class="w-8 h-8 rounded-lg bg-gradient-to-tr from-teal-500 to-emerald-500 text-white flex items-center justify-center text-[10px] font-semibold shadow">
                                         TT</div>
                                     <div class="flex-1 min-w-0">
                                         <p class="text-xs font-mono text-gray-500 dark:text-gray-400">
@@ -339,7 +339,7 @@
                                         <p class="text-gray-800 dark:text-gray-100 font-medium line-clamp-1">
                                             {{ $s['judul'] }}</p>
                                         <span
-                                            class="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-medium {{ $statusMap[$s['status']] ?? 'bg-gray-100 text-gray-600' }}">{{ $s['status'] }}</span>
+                                            class="inline-block mt-1 px-2 py-0.5 rounded-lg text-[10px] font-medium {{ $statusMap[$s['status']] ?? 'bg-gray-100 text-gray-600' }}">{{ $s['status'] }}</span>
                                     </div>
                                     <button class="text-gray-400 hover:text-amber-600"><i data-feather="arrow-right"
                                             class="w-4 h-4"></i></button>

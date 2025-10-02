@@ -69,12 +69,10 @@
                     @if($user->role === 'admin')
                         {!! $navItem('Dashboard','home','dashboard',null,null) !!}
                         <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Manajemen</div>
-                        {!! $navItem('Pengguna','users','admin.users.index',['admin.users.*'],12) !!}
-                        {!! $navItem('Departemen','layers','admin.departments.index',['admin.departments.*'],6,'bg-blue-500/10 text-blue-600 dark:text-blue-300 dark:bg-blue-400/10') !!}
-                        {!! $navItem('Jenis Surat','tag','admin.letter-types.index',['admin.letter-types.*'],14,'bg-purple-500/10 text-purple-600 dark:text-purple-300 dark:bg-purple-400/10') !!}
-                        {!! $navItem('Template Surat','file-text','admin.templates.index',['admin.templates.*'],3,'bg-teal-500/10 text-teal-600 dark:text-teal-300 dark:bg-teal-400/10') !!}
-                        {!! $navItem('Monitoring Sistem','activity','admin.monitoring',['admin.monitoring','horizon.*','telescope'],null) !!}
-                        {!! $navItem('Pengaturan','settings','admin.settings',['admin.settings*']) !!}
+                        {!! $navItem('Pengguna','users','dashboard.pengguna',['dashboard.pengguna'],12) !!}
+                        {!! $navItem('Departemen','layers','dashboard.departemen',['dashboard.departemen'],6,'bg-blue-500/10 text-blue-600 dark:text-blue-300 dark:bg-blue-400/10') !!}
+                        {!! $navItem('Jenis Surat','tag','dashboard.jenis-surat',['dashboard.jenis-surat'],14,'bg-purple-500/10 text-purple-600 dark:text-purple-300 dark:bg-purple-400/10') !!}
+                        {!! $navItem('Monitoring Sistem','activity','dashboard.monitoring',['dashboard.monitoring'],null) !!}
                     @elseif($user->role === 'rektorat')
                         {!! $navItem('Dashboard','home','dashboard') !!}
                         <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Surat & Tugas</div>
