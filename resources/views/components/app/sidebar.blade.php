@@ -67,7 +67,7 @@
                 <ul class="mt-3">
                     {{-- Common / Role-specific navigation --}}
                     @if($user->role === 'admin')
-                        {!! $navItem('Dashboard','home','dashboard',null,null) !!}
+                        {!! $navItem('Dashboard','home','dashboard.admin',['dashboard.admin']) !!}
                         <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Manajemen</div>
                         {!! $navItem('Pengguna','users','dashboard.pengguna',['dashboard.pengguna'],12) !!}
                         {!! $navItem('Departemen','layers','dashboard.departemen',['dashboard.departemen'],6,'bg-blue-500/10 text-blue-600 dark:text-blue-300 dark:bg-blue-400/10') !!}
@@ -83,11 +83,11 @@
                         {!! $navItem('History Disposisi','clock','history.disposisi',['history.disposisi'],9,'bg-amber-500/10 text-amber-600 dark:text-amber-300 dark:bg-amber-400/10') !!}
                         {!! $navItem('Arsip Surat Tugas','archive','arsip.surat.tugas',['arsip.surat.tugas'],142,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}
                     @elseif($user->role === 'unit_kerja')
-                        {!! $navItem('Dashboard','home','dashboard') !!}
+                        {!! $navItem('Dashboard','home','dashboard.unit_kerja',['dashboard.unit_kerja']) !!}
                         <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Surat</div>
-                        {!! $navItem('Surat Masuk','inbox','letters.incoming.index',['letters.incoming.*'],6) !!}
-                        {!! $navItem('Buat Surat','file-plus','letters.outgoing.create',['letters.outgoing.create','letters.outgoing.edit']) !!}
-                        {!! $navItem('Arsip Surat Tugas','archive','letters.tasks.archive',['letters.tasks.archive'],54,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}
+                        {!! $navItem('Surat Masuk','inbox','unit_kerja.surat.masuk',['unit_kerja.surat.masuk']) !!}
+                        {!! $navItem('Buat Surat','file-plus','unit_kerja.buat.surat',['unit_kerja.buat.surat']) !!}
+                        {!! $navItem('Arsip Surat Tugas','archive','unit_kerja.arsip.surat.tugas',['unit_kerja.arsip.surat.tugas'],null,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}
                     @endif
                 </ul>
             </div>
