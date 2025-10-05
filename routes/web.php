@@ -4,20 +4,7 @@ use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DataFeedController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\MemberController;
-use App\Http\Controllers\TransactionController;
-use App\Http\Controllers\JobController;
-use App\Http\Controllers\CampaignController;
-use App\Http\Controllers\NasabahController;
-use App\Http\Controllers\PetugasController;
-use App\Http\Controllers\SiswaController;
-use App\Http\Controllers\ForumController;
-use App\Http\Controllers\MateriController;
-use App\Http\Controllers\JadwalController;
-use App\Http\Controllers\KehadiranController;
+use App\Http\Controllers\RektoratController;
 
 /*
 |--------------------------------------------------------------------------
@@ -38,12 +25,26 @@ Route::get('/landing', function () {
 
 // role admin
 Route::middleware(['auth:sanctum', 'verified', 'role:admin'])->group(function () {
+    Route::get('/dashboard/admin', [DashboardController::class, 'index'])->name('dashboard.admin');
 
-    Route::get('/json-data-feed', [DataFeedController::class, 'getDataFeed'])->name('json_data_feed');
-
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/pengguna', [AdminController::class, 'pengguna'])->name('dashboard.pengguna');
     Route::get('/departemen', [AdminController::class, 'departemen'])->name('dashboard.departemen');
     Route::get('/jenis-surat', [AdminController::class, 'jenisSurat'])->name('dashboard.jenis-surat');
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->name('dashboard.monitoring');
+});
+
+// role rektorat
+Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function () {
+    Route::get('/dashboard/rektor', [DashboardController::class, 'index'])->name('dashboard.rektorat');
+    Route::get('/surat-masuk', [RektoratController::class, 'suratMasuk'])->name('surat.masuk');
+    Route::get('/surat-tugas', [RektoratController::class, 'suratTugas'])->name('surat.tugas');
+    Route::get('/inbox-surat-tugas', [RektoratController::class, 'inboxSuratTugas'])->name('inbox.surat.tugas');
+    Route::get('/history-disposisi', [RektoratController::class, 'historyDisposisi'])->name('history.disposisi');
+    Route::get('/tindak-lanjut-surat-tugas', [RektoratController::class, 'tindakLanjutSuratTugas'])->name('tindaklanjut.surat.tugas');
+    Route::get('/arsip-surat-tugas', [RektoratController::class, 'arsipSuratTugas'])->name('arsip.surat.tugas');
+});
+
+// role unit_kerja
+Route::middleware(['auth:sanctum', 'verified', 'role:unit_kerja'])->group(function () {
+    Route::get('/dashboard/unit-kerja', [DashboardController::class, 'index'])->name('dashboard.unit_kerja');
 });
