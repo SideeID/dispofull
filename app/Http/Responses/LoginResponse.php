@@ -23,13 +23,23 @@ class LoginResponse implements LoginResponseContract
 
         $user = Auth::user();
 
+        // Gunakan fallback aman jika nama route khusus belum terdaftar
+        $routeFor = function(string $preferred, string $fallback) {
+            return \Illuminate\Support\Facades\Route::has($preferred)
+                ? $preferred
+                : (\Illuminate\Support\Facades\Route::has($fallback) ? $fallback : 'login');
+        };
+
         switch ($user->role) {
             case 'admin':
-                return redirect()->route('dashboard');
-            case 'siswa':
-                return redirect()->route('siswa.dashboard');
+                return redirect()->route($routeFor('dashboard.admin', 'dashboard'));
+            case 'rektorat':
+                return redirect()->route($routeFor('dashboard.rektorat', 'dashboard'));
+            case 'unit_kerja':
+                return redirect()->route($routeFor('dashboard.unit_kerja', 'dashboard'));
             default:
-                return redirect()->intended(config('fortify.home'));
+                Auth::logout();
+                return redirect()->route('login')->with('error', 'Unauthorized access.');
         }
     }
 }

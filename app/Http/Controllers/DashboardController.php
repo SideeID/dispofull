@@ -26,14 +26,4 @@ class DashboardController extends Controller
             }
         }
     }
-
-    public function analytics()
-    {
-        return view('pages/dashboard/analytics');
-    }
-
-    public function fintech()
-    {
-        return view('pages/dashboard/fintech');
-    }
 }
