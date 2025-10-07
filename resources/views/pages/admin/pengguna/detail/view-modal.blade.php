@@ -13,24 +13,21 @@
 				<div class="grid grid-cols-3 gap-3">
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Nama</div>
 					<div class="col-span-2 font-medium text-gray-800 dark:text-gray-100" x-text="selectedUser.name"></div>
+					<div class="text-gray-500 dark:text-gray-400 text-xs">Username</div>
+					<div class="col-span-2 text-gray-700 dark:text-gray-300" x-text="selectedUser.username || '-' "></div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Email</div>
 					<div class="col-span-2 text-gray-700 dark:text-gray-300" x-text="selectedUser.email"></div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">NIP</div>
 					<div class="col-span-2 text-gray-700 dark:text-gray-300" x-text="selectedUser.nip || '-' "></div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Departemen</div>
-					<div class="col-span-2 text-gray-700 dark:text-gray-300" x-text="selectedUser.department"></div>
+					<div class="col-span-2 text-gray-700 dark:text-gray-300 flex items-center gap-2">
+						<span x-text="selectedUser.department?.name || '-' "></span>
+						<template x-if="selectedUser.department?.code"><span class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-[10px] font-mono text-gray-600 dark:text-gray-300" x-text="selectedUser.department.code"></span></template>
+					</div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Role</div>
-					<div class="col-span-2">
-						<span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold" :class="{
-							'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300': selectedUser.role=='admin',
-							'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300': selectedUser.role=='rektorat',
-							'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300': selectedUser.role=='unit_kerja'
-						}" x-text="selectedUser.role"></span>
-					</div>
+					<div class="col-span-2"><span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold" :class="selectedUser.roleClass" x-text="selectedUser.role"></span></div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Status</div>
-					<div class="col-span-2">
-						<span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold" :class="selectedUser.status=='Aktif' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-gray-200 text-gray-700 dark:bg-gray-600/40 dark:text-gray-300'" x-text="selectedUser.status"></span>
-					</div>
+					<div class="col-span-2"><span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold" :class="selectedUser.statusClass" x-text="selectedUser.statusLabel"></span></div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Terakhir Masuk</div>
 					<div class="col-span-2 text-gray-700 dark:text-gray-300">-</div>
 				</div>

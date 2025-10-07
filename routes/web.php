@@ -32,6 +32,16 @@ Route::middleware(['auth:sanctum', 'verified', 'role:admin'])->group(function ()
     Route::get('/departemen', [AdminController::class, 'departemen'])->name('dashboard.departemen');
     Route::get('/jenis-surat', [AdminController::class, 'jenisSurat'])->name('dashboard.jenis-surat');
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->name('dashboard.monitoring');
+
+    // AJAX JSON endpoints for Users management
+    Route::prefix('admin/users')->name('admin.users.')->group(function(){
+        Route::get('/', [AdminController::class,'usersIndex'])->name('index');
+        Route::get('/{user}', [AdminController::class,'usersShow'])->name('show');
+        Route::post('/', [AdminController::class,'usersStore'])->name('store');
+        Route::put('/{user}', [AdminController::class,'usersUpdate'])->name('update');
+        Route::delete('/{user}', [AdminController::class,'usersDestroy'])->name('destroy');
+    });
+    Route::get('/admin/departments', [AdminController::class,'departmentsIndex'])->name('admin.departments.index');
 });
 
 // role rektorat
