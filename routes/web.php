@@ -50,6 +50,14 @@ Route::middleware(['auth:sanctum', 'verified', 'role:admin'])->group(function ()
         Route::put('/manage/{department}', [AdminController::class,'departmentsUpdate'])->name('update');
         Route::delete('/manage/{department}', [AdminController::class,'departmentsDestroy'])->name('destroy');
     });
+        // Letter Types CRUD
+        Route::prefix('admin/letter-types')->name('admin.letter_types.')->group(function(){
+            Route::get('/', [AdminController::class,'letterTypesIndex'])->name('index');
+            Route::get('/{letterType}', [AdminController::class,'letterTypesShow'])->name('show');
+            Route::post('/', [AdminController::class,'letterTypesStore'])->name('store');
+            Route::put('/{letterType}', [AdminController::class,'letterTypesUpdate'])->name('update');
+            Route::delete('/{letterType}', [AdminController::class,'letterTypesDestroy'])->name('destroy');
+        });
 });
 
 // role rektorat
