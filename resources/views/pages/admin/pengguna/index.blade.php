@@ -80,9 +80,9 @@
             </div>
         </div>
 
-        {{-- <x-dynamic-component :component="'pages.admin.pengguna.detail.add-modal'" x-show="showAdd" @close="showAdd = false" />
-        <x-dynamic-component :component="'pages.admin.pengguna.detail.edit-modal'" x-show="showEdit" :user="selectedUser" @close="showEdit = false" />
-        <x-dynamic-component :component="'pages.admin.pengguna.detail.view-modal'" x-show="showView" :user="selectedUser" @close="showView = false" />
-        <x-dynamic-component :component="'pages.admin.pengguna.detail.delete-modal'" x-show="showDelete" :user="selectedUser" @close="showDelete = false" /> --}}
+        @include('pages.admin.pengguna.detail.add-modal')
+        @include('pages.admin.pengguna.detail.edit-modal')
+        @include('pages.admin.pengguna.detail.view-modal')
+        @include('pages.admin.pengguna.detail.delete-modal')
     </div>
 </x-app-layout>
