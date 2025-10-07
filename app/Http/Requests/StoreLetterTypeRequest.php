@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreDepartmentRequest extends FormRequest
+class StoreLetterTypeRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -15,9 +15,9 @@ class StoreDepartmentRequest extends FormRequest
     {
         return [
             'name' => ['required','string','max:150'],
-            'code' => ['required','string','max:20','unique:departments,code'],
+            'code' => ['required','string','max:30','unique:letter_types,code'],
             'description' => ['nullable','string'],
-            'type' => ['required','in:rektorat,unit_kerja'],
+            'number_format' => ['nullable','string','max:255'],
             'is_active' => ['sometimes','boolean']
         ];
     }

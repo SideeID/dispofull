@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateDepartmentRequest extends FormRequest
+class UpdateLetterTypeRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,12 +14,12 @@ class UpdateDepartmentRequest extends FormRequest
 
     public function rules(): array
     {
-        $id = $this->route('department')?->id;
+        $id = $this->route('letterType')?->id;
         return [
             'name' => ['sometimes','required','string','max:150'],
-            'code' => ['sometimes','required','string','max:20', Rule::unique('departments','code')->ignore($id)],
+            'code' => ['sometimes','required','string','max:30', Rule::unique('letter_types','code')->ignore($id)],
             'description' => ['nullable','string'],
-            'type' => ['sometimes','required','in:rektorat,unit_kerja'],
+            'number_format' => ['sometimes','nullable','string','max:255'],
             'is_active' => ['sometimes','boolean']
         ];
     }

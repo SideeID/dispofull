@@ -8,7 +8,6 @@ class StoreUserRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Sudah dilindungi middleware role:admin
         return true;
     }
 

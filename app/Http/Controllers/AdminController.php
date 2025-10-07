@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Department;
+use App\Models\LetterType;
+use App\Http\Requests\StoreLetterTypeRequest;
+use App\Http\Requests\UpdateLetterTypeRequest;
 use App\Http\Requests\StoreDepartmentRequest;
 use App\Http\Requests\UpdateDepartmentRequest;
 use Illuminate\Support\Facades\Hash;
@@ -35,14 +38,8 @@ class AdminController extends Controller
         return view('pages.admin.monitoring.index');
     }
 
-    /* =================== User CRUD (API-like endpoints for AJAX) =================== */
-
     public function departmentsIndex(Request $request)
     {
-        // Dual mode endpoint:
-        // 1) Simple list (default) for selection dropdowns (active only, no pagination)
-        // 2) Manage mode (manage=1 or presence of filter/page params) returns paginated dataset with counts & all fields
-
         $isManage = $request->boolean('manage') || $request->hasAny(['q','type','status','page']);
 
         if (!$isManage) {
@@ -179,5 +176,61 @@ class AdminController extends Controller
             $i++;
         }
         return $username ?: 'user'.time();
+    }
+
+    public function letterTypesIndex(Request $request)
+    {
+        $query = LetterType::query();
+        if ($s = $request->get('q')) {
+            $query->where(function($q) use ($s){
+                                $q->where('name','like',"%$s%")
+                                    ->orWhere('code','like',"%$s%")
+                                    ->orWhere('description','like',"%$s%");
+            });
+        }
+        if ($status = $request->get('status')) {
+            if (in_array($status,['0','1'], true)) {
+                $query->where('is_active', $status === '1');
+            }
+        }
+        if ($category = $request->get('category')) {
+            $query->where('description','like',"%$category%" );
+        }
+        $types = $query->orderBy('name')->paginate(15);
+        return response()->json($types);
+    }
+
+    public function letterTypesShow(LetterType $letterType)
+    {
+        $letterType->loadCount('letters');
+        $data = $letterType->toArray();
+        $data['used'] = $letterType->letters_count;
+        return response()->json($data);
+    }
+
+    public function letterTypesStore(StoreLetterTypeRequest $request)
+    {
+        $data = $request->validated();
+        $lt = LetterType::create($data);
+        $lt->loadCount('letters');
+        $d = $lt->toArray();
+        $d['used'] = $lt->letters_count;
+        return response()->json(['message'=>'Letter type created','data'=>$d], 201);
+    }
+
+    public function letterTypesUpdate(UpdateLetterTypeRequest $request, LetterType $letterType)
+    {
+        $data = $request->validated();
+        $letterType->update($data);
+        $letterType->loadCount('letters');
+        $d = $letterType->toArray();
+        $d['used'] = $letterType->letters_count;
+        return response()->json(['message'=>'Letter type updated','data'=>$d]);
+    }
+
+    public function letterTypesDestroy(LetterType $letterType)
+    {
+        $letterType->delete();
+        return response()->json(['message'=>'Letter type deleted']);
     }
 }
