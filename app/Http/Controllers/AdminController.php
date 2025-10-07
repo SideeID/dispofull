@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Department;
+use App\Http\Requests\StoreDepartmentRequest;
+use App\Http\Requests\UpdateDepartmentRequest;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
@@ -37,11 +39,74 @@ class AdminController extends Controller
 
     public function departmentsIndex(Request $request)
     {
-        $q = Department::query()->where('is_active', true);
-        if ($search = $request->get('search')) {
-            $q->where('name','like',"%$search%");
+        // Dual mode endpoint:
+        // 1) Simple list (default) for selection dropdowns (active only, no pagination)
+        // 2) Manage mode (manage=1 or presence of filter/page params) returns paginated dataset with counts & all fields
+
+        $isManage = $request->boolean('manage') || $request->hasAny(['q','type','status','page']);
+
+        if (!$isManage) {
+            $q = Department::query()->where('is_active', true);
+            if ($search = $request->get('search')) {
+                $q->where('name','like',"%$search%")
+                  ->orWhere('code','like',"%$search%");
+            }
+            return response()->json($q->orderBy('name')->get(['id','name','code','type']));
         }
-        return response()->json($q->orderBy('name')->get(['id','name','code','type']));
+
+        $query = Department::query()
+            ->when($request->filled('q'), function($qq) use ($request){
+                $s = $request->q;
+                $qq->where(function($w) use ($s){
+                    $w->where('name','like',"%$s%")
+                      ->orWhere('code','like',"%$s%")
+                      ->orWhere('description','like',"%$s%" );
+                });
+            })
+            ->when($request->filled('type'), function($qq) use ($request){
+                $qq->where('type', $request->type);
+            })
+            ->when($request->filled('status'), function($qq) use ($request){
+                if (in_array($request->status, ['0','1'], true)) {
+                    $qq->where('is_active', $request->status === '1');
+                }
+            })
+            ->withCount([
+                'lettersTo as in_count',
+                'lettersFrom as out_count'
+            ])
+            ->orderBy('name');
+
+        $departments = $query->paginate(15);
+        return response()->json($departments);
+    }
+
+    public function departmentsShow(Department $department)
+    {
+        $department->loadCount(['lettersTo as in_count','lettersFrom as out_count']);
+        return response()->json($department);
+    }
+
+    public function departmentsStore(StoreDepartmentRequest $request)
+    {
+        $data = $request->validated();
+        $department = Department::create($data);
+        $department->loadCount(['lettersTo as in_count','lettersFrom as out_count']);
+        return response()->json(['message'=>'Department created','data'=>$department], 201);
+    }
+
+    public function departmentsUpdate(UpdateDepartmentRequest $request, Department $department)
+    {
+        $data = $request->validated();
+        $department->update($data);
+        $department->loadCount(['lettersTo as in_count','lettersFrom as out_count']);
+        return response()->json(['message'=>'Department updated','data'=>$department]);
+    }
+
+    public function departmentsDestroy(Department $department)
+    {
+        $department->delete();
+        return response()->json(['message'=>'Department deleted']);
     }
 
     public function usersIndex(Request $request)

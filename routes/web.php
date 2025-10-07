@@ -41,7 +41,15 @@ Route::middleware(['auth:sanctum', 'verified', 'role:admin'])->group(function ()
         Route::put('/{user}', [AdminController::class,'usersUpdate'])->name('update');
         Route::delete('/{user}', [AdminController::class,'usersDestroy'])->name('destroy');
     });
+    // Departments (simple list & manage CRUD)
     Route::get('/admin/departments', [AdminController::class,'departmentsIndex'])->name('admin.departments.index');
+    Route::prefix('admin/departments')->name('admin.departments.')->group(function(){
+        Route::get('/manage', [AdminController::class,'departmentsIndex'])->name('manage'); // same endpoint with manage=1
+        Route::get('/manage/{department}', [AdminController::class,'departmentsShow'])->name('show');
+        Route::post('/manage', [AdminController::class,'departmentsStore'])->name('store');
+        Route::put('/manage/{department}', [AdminController::class,'departmentsUpdate'])->name('update');
+        Route::delete('/manage/{department}', [AdminController::class,'departmentsDestroy'])->name('destroy');
+    });
 });
 
 // role rektorat

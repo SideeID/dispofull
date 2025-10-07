@@ -18,11 +18,11 @@
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Tipe</div>
 					<div class="col-span-2"><span x-text="selected?.type" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"></span></div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Status</div>
-					<div class="col-span-2"><span x-text="selected?.active ? 'Aktif':'Nonaktif'" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"></span></div>
+					<div class="col-span-2"><span x-text="selected?.is_active ? 'Aktif':'Nonaktif'" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"></span></div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Surat Masuk</div>
-					<div class="col-span-2 font-medium" x-text="selected?.in"></div>
+					<div class="col-span-2 font-medium" x-text="selected?.in_count ?? 0"></div>
 					<div class="text-gray-500 dark:text-gray-400 text-xs">Surat Keluar</div>
-					<div class="col-span-2 font-medium" x-text="selected?.out"></div>
+					<div class="col-span-2 font-medium" x-text="selected?.out_count ?? 0"></div>
 				</div>
 			</div>
 			<div class="flex items-center justify-end pt-2">
