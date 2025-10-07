@@ -12,7 +12,7 @@
 			<p class="text-sm text-gray-600 dark:text-gray-300">Anda yakin ingin menghapus jenis surat <span class="font-semibold" x-text="selected?.name"></span>? Data penomoran terkait mungkin terpengaruh.</p>
 			<div class="flex items-center justify-end gap-3 pt-2">
 				<button type="button" @click="closeAll()" class="px-4 py-2 rounded-lg text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">Batal</button>
-				<button type="button" @click="alert('Hapus jenis surat (dummy)'); closeAll()" class="px-4 py-2 rounded-lg text-sm bg-rose-600 hover:bg-rose-500 text-white font-medium flex items-center gap-2">
+				<button type="button" @click="deleteType()" class="px-4 py-2 rounded-lg text-sm bg-rose-600 hover:bg-rose-500 text-white font-medium flex items-center gap-2">
 					Hapus
 				</button>
 			</div>

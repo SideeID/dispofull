@@ -1,65 +1,7 @@
 <x-app-layout>
     <div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
-        {{-- <div class="sm:flex sm:justify-between sm:items-center mb-8">
-            <div class="mb-4 sm:mb-0">
-                <h1 class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold flex items-center gap-3">
-                    <span
-                        class="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 text-white shadow">
-                        <i data-feather="file-text" class="w-5 h-5"></i>
-                    </span>
-                    Dashboard Sistem Surat
-                </h1>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Ringkasan aktivitas & performa pengelolaan surat
-                    kampus</p>
-            </div>
-            <div class="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
-                <x-datepicker />
-                <a href="#"
-                    class="btn bg-amber-600 hover:bg-amber-500 text-white border-0 shadow-sm flex items-center gap-2">
-                    <i data-feather="file-plus" class="w-4 h-4"></i>
-                    <span class="hidden sm:inline">Buat Surat</span>
-                </a>
-                <a href="#"
-                    class="btn bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
-                    <i data-feather="refresh-cw" class="w-4 h-4"></i>
-                    <span class="hidden sm:inline">Refresh</span>
-                </a>
-            </div>
-        </div> --}}
-
         <div class="grid grid-cols-12 gap-6 mb-10">
-            @php
-                $cards = [
-                    [
-                        'label' => 'Surat Masuk (Hari ini)',
-                        'value' => 18,
-                        'icon' => 'inbox',
-                        'color' => 'from-amber-500 to-orange-500',
-                        'delta' => '+12%',
-                    ],
-                    [
-                        'label' => 'Surat Keluar (Draft)',
-                        'value' => 7,
-                        'icon' => 'edit',
-                        'color' => 'from-blue-500 to-indigo-500',
-                        'delta' => '2 baru',
-                    ],
-                    [
-                        'label' => 'Disposisi Pending',
-                        'value' => 9,
-                        'icon' => 'git-branch',
-                        'color' => 'from-rose-500 to-pink-500',
-                        'delta' => '3 urgent',
-                    ],
-                    [
-                        'label' => 'Butuh Tanda Tangan',
-                        'value' => 5,
-                        'icon' => 'pen-tool',
-                        'color' => 'from-teal-500 to-emerald-500',
-                        'delta' => '1 prioritas',
-                    ],
-                ];
-            @endphp
+            @php // $cards now datang dari controller @endphp
             @foreach ($cards as $c)
                 <div class="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
                     <div
