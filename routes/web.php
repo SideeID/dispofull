@@ -63,18 +63,18 @@ Route::middleware(['auth:sanctum', 'verified', 'role:admin'])->group(function ()
 // role rektorat
 Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function () {
     Route::get('/dashboard/rektor', [DashboardController::class, 'index'])->name('dashboard.rektorat');
-    Route::get('/surat-masuk', [RektoratController::class, 'suratMasuk'])->name('surat.masuk');
-    Route::get('/surat-tugas', [RektoratController::class, 'suratTugas'])->name('surat.tugas');
-    Route::get('/inbox-surat-tugas', [RektoratController::class, 'inboxSuratTugas'])->name('inbox.surat.tugas');
-    Route::get('/history-disposisi', [RektoratController::class, 'historyDisposisi'])->name('history.disposisi');
-    Route::get('/tindak-lanjut-surat-tugas', [RektoratController::class, 'tindakLanjutSuratTugas'])->name('tindaklanjut.surat.tugas');
-    Route::get('/arsip-surat-tugas', [RektoratController::class, 'arsipSuratTugas'])->name('arsip.surat.tugas');
+    Route::get('rektor/surat-masuk', [RektoratController::class, 'suratMasuk'])->name('surat.masuk');
+    Route::get('rektor/surat-tugas', [RektoratController::class, 'suratTugas'])->name('surat.tugas');
+    Route::get('rektor/inbox-surat-tugas', [RektoratController::class, 'inboxSuratTugas'])->name('inbox.surat.tugas');
+    Route::get('rektor/history-disposisi', [RektoratController::class, 'historyDisposisi'])->name('history.disposisi');
+    Route::get('rektor/tindak-lanjut-surat-tugas', [RektoratController::class, 'tindakLanjutSuratTugas'])->name('tindaklanjut.surat.tugas');
+    Route::get('rektor/arsip-surat-tugas', [RektoratController::class, 'arsipSuratTugas'])->name('arsip.surat.tugas');
 });
 
 // role unit_kerja
 Route::middleware(['auth:sanctum', 'verified', 'role:unit_kerja'])->group(function () {
     Route::get('/dashboard/unit-kerja', [DashboardController::class, 'index'])->name('dashboard.unit_kerja');
-    Route::get('/arsip-surat-tugas', [UnitKerjaController::class, 'arsipSuratTugas'])->name('unit_kerja.arsip.surat.tugas');
-    Route::get('/buat-surat', [UnitKerjaController::class, 'buatSurat'])->name('unit_kerja.buat.surat');
-    Route::get('/surat-masuk', [UnitKerjaController::class, 'suratMasuk'])->name('unit_kerja.surat.masuk');
+    Route::get('unit-kerja/arsip-surat-tugas', [UnitKerjaController::class, 'arsipSuratTugas'])->name('unit_kerja.arsip.surat.tugas');
+    Route::get('unit-kerja/buat-surat', [UnitKerjaController::class, 'buatSurat'])->name('unit_kerja.buat.surat');
+    Route::get('unit-kerja/surat-masuk', [UnitKerjaController::class, 'suratMasuk'])->name('unit_kerja.surat.masuk');
 });
