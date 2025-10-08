@@ -1,7 +1,7 @@
-<template x-if="showParticipants">
+<template x-if="openFlags.showParticipants">
 	<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 py-6 sm:p-0">
 		<div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" @click="closeAll()"></div>
-		<div class="relative w-full sm:max-w-3xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 flex flex-col max-h-[90vh]">
+		<div class="relative w-full sm:max-w-5xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 flex flex-col max-h-[90vh]">
 			<div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between gap-4">
 				<div>
 					<h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Kelola Peserta / Penerima</h3>
@@ -17,7 +17,7 @@
 								<i data-feather='search' class='w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400'></i>
 								<input x-model="participantSearch" type="text" placeholder="Cari nama / NIP" class="w-full pl-9 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500" />
 							</div>
-							<button type="button" @click="addParticipantManual()" class="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] flex items-center gap-1"><i data-feather='plus-circle' class='w-3.5 h-3.5'></i> Manual</button>
+							<button type="button" @click="addParticipantManual()" class="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] flex items-center gap-1">Manual</button>
 						</div>
 						<div class="border border-gray-200 dark:border-gray-600 rounded-lg divide-y divide-gray-200 dark:divide-gray-600 bg-gray-50 dark:bg-gray-700/40" x-data="{ filtered(){ return participants.filter(p=> !participantSearch || p.nama.toLowerCase().includes(participantSearch.toLowerCase()) || p.nip.includes(participantSearch)); } }">
 							<template x-for="p in filtered()" :key="p.nip">
