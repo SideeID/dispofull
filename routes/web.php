@@ -77,4 +77,23 @@ Route::middleware(['auth:sanctum', 'verified', 'role:unit_kerja'])->group(functi
     Route::get('unit-kerja/arsip-surat-tugas', [UnitKerjaController::class, 'arsipSuratTugas'])->name('unit_kerja.arsip.surat.tugas');
     Route::get('unit-kerja/buat-surat', [UnitKerjaController::class, 'buatSurat'])->name('unit_kerja.buat.surat');
     Route::get('unit-kerja/surat-masuk', [UnitKerjaController::class, 'suratMasuk'])->name('unit_kerja.surat.masuk');
+
+    Route::prefix('unit-kerja/api')->name('unit_kerja.api.')->group(function(){
+        // master data
+        Route::get('/letter-types', [UnitKerjaController::class,'letterTypes'])->name('letter_types');
+        Route::get('/signers', [UnitKerjaController::class,'signers'])->name('signers');
+        Route::get('/penandatangan', [UnitKerjaController::class,'penandatangan'])->name('penandatangan');
+
+        // draft CRUD
+        Route::post('/letters/draft', [UnitKerjaController::class,'storeDraft'])->name('letters.draft.store');
+        Route::put('/letters/draft/{letter}', [UnitKerjaController::class,'updateDraft'])->name('letters.draft.update');
+
+        // attachments
+        Route::post('/letters/{letter}/attachments', [UnitKerjaController::class,'uploadAttachment'])->name('letters.attachments.upload');
+        Route::delete('/letters/{letter}/attachments/{attachment}', [UnitKerjaController::class,'deleteAttachment'])->name('letters.attachments.delete');
+
+        // numbering preview & submit
+        Route::get('/letters/number/preview', [UnitKerjaController::class,'previewNextNumber'])->name('letters.number.preview');
+        Route::post('/letters/{letter}/submit', [UnitKerjaController::class,'submitForSignature'])->name('letters.submit');
+    });
 });
