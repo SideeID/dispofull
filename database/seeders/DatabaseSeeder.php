@@ -20,6 +20,9 @@ class DatabaseSeeder extends Seeder
             LetterTypeSeeder::class,
             DashboardTableSeeder::class,
             UserSeeder::class,
+            LetterSeeder::class,
+            LetterDispositionSeeder::class,
+            LetterAttachmentSeeder::class,
         ]);
     }
 }

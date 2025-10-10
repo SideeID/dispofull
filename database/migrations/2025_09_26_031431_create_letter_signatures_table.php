@@ -18,7 +18,7 @@ return new class extends Migration
             $table->enum('signature_type', ['digital', 'electronic'])->default('digital');
             $table->string('signature_path')->nullable(); // Path file tanda tangan
             $table->text('signature_data')->nullable(); // Data tanda tangan dalam format base64
-            $table->timestamp('signed_at'); // Kapan ditandatangani
+            $table->timestamp('signed_at')->nullable(); // Kapan ditandatangani
             $table->string('ip_address')->nullable(); // IP address saat menandatangani
             $table->text('user_agent')->nullable(); // User agent saat menandatangani
             $table->enum('status', ['pending', 'signed', 'rejected'])->default('pending');
