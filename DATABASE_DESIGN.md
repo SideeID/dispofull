@@ -2,9 +2,7 @@
 
 Dokumen ini merangkum rancangan database berdasarkan seluruh migration dan model Eloquent yang ada di repo ini. Mencakup ERD, deskripsi tabel, relasi, enum/state, indexing, serta catatan implementasi untuk fitur utama: tracking surat, arsip digital, tanda tangan elektronik/digital, penomoran otomatis, dan agenda PDF.
 
-## ERD (Mermaid)
-
-Diagram di bawah menggunakan Mermaid (dirender otomatis oleh GitHub/VS Code Markdown Preview).
+## ERD
 
 ```mermaid
 erDiagram
@@ -137,36 +135,6 @@ erDiagram
     string filters
   }
 
-  PERSONAL_ACCESS_TOKENS {
-    int id
-    string tokenable_type
-    int tokenable_id
-    string name
-    string token
-    string abilities
-    datetime last_used_at
-    datetime expires_at
-  }
-
-  SESSIONS {
-    string id
-    int user_id
-    string ip_address
-    string user_agent
-    string payload
-    int last_activity
-  }
-
-  FAILED_JOBS {
-    int id
-    string uuid
-    string connection
-    string queue
-    string payload
-    string exception
-    datetime failed_at
-  }
-
   %% Relationships
   DEPARTMENTS ||--o{ USERS : department_id
   LETTER_TYPES ||--o{ LETTERS : letter_type_id
@@ -191,8 +159,6 @@ erDiagram
   DEPARTMENTS ||--o{ LETTER_AGENDAS : department_id
   USERS ||--o{ LETTER_AGENDAS : created_by
 ```
-
-Catatan: Tabel pendukung standar Laravel (sessions, personal_access_tokens, failed_jobs) disertakan untuk kelengkapan namun tidak menjadi domain inti.
 
 ---
 
