@@ -18,7 +18,7 @@
 						<div class="font-semibold text-gray-800 dark:text-gray-100 text-lg" x-text="form.perihal || 'Judul / Perihal Surat' "></div>
 						<div class="text-[11px] text-gray-400" x-text="'Tanggal: ' + (form.tanggal || '—')"></div>
 					</div>
-					<div class="prose prose-sm dark:prose-invert max-w-none" x-html="(form.konten||'').replace(/\n/g,'<br>') || '<p><em>Konten surat belum diisi.</em></p>'"></div>
+					<div class="prose prose-sm dark:prose-invert max-w-none" x-html="(form.konten||'') || '<p><em>Konten surat belum diisi.</em></p>'"></div>
 					<div class="pt-4 border-t border-dashed border-gray-300 dark:border-gray-700">
 						<h4 class="text-xs font-semibold tracking-wide uppercase text-gray-500 dark:text-gray-400 mb-2">Penerima</h4>
 						<ul class="grid md:grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
@@ -49,7 +49,7 @@
 			</div>
 			<div class="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-end gap-3 bg-white dark:bg-gray-900 rounded-b-2xl">
 				<button type="button" @click="closeAll()" class="px-4 py-2 rounded-lg text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">Tutup</button>
-				<button type="button" @click="open('showSubmitConfirm')" class="px-4 py-2 rounded-lg text-sm bg-violet-600 hover:bg-violet-500 text-white flex items-center gap-2"><i data-feather='send' class='w-4 h-4'></i>Ajukan TTD</button>
+				<button type="button" @click="open('showSubmitConfirm')" class="px-4 py-2 rounded-lg text-sm bg-violet-600 hover:bg-violet-500 text-white flex items-center gap-2">Ajukan TTD</button>
 			</div>
 		</div>
 	</div>

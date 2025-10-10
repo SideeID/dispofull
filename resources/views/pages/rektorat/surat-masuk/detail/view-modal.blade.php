@@ -60,25 +60,8 @@
                                     x-text="selected?.status"></span></div>
                         </div>
                     </div>
-                    <div>
-                        <div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500">
-                            Ringkasan</div>
-                        <p class="text-gray-600 dark:text-gray-300 mt-1 leading-relaxed">Contoh ringkasan isi surat
-                            (placeholder) - integrasikan dengan field konten ringkas surat ketika data tersedia.</p>
-                    </div>
                 </div>
                 <div class="space-y-5">
-                    <div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
-                        <div
-                            class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">
-                            Lampiran</div>
-                        <ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                            <li class="flex items-center justify-between"><span>proposal_kerjasama.pdf</span><button
-                                    class="text-amber-600 dark:text-amber-400 hover:underline">Unduh</button></li>
-                            <li class="flex items-center justify-between"><span>profil_mitra.pdf</span><button
-                                    class="text-amber-600 dark:text-amber-400 hover:underline">Unduh</button></li>
-                        </ul>
-                    </div>
                     <div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
                         <div
                             class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">
@@ -90,9 +73,10 @@
                         </ul>
                     </div>
                     <div class="flex gap-2">
-                        <button @click="closeAll(); open('showDisposition', selected)"
+                        <button
+                            @click="closeAll(); $dispatch('open-modal', { modal: 'showDisposition', row: selected })"
                             class="flex-1 px-4 py-2 rounded-lg text-xs bg-amber-600 hover:bg-amber-500 text-white font-medium">Disposisi</button>
-                        <button @click="closeAll(); open('showAttachment', selected)"
+                        <button @click="closeAll(); $dispatch('open-modal', { modal: 'showAttachment', row: selected })"
                             class="flex-1 px-4 py-2 rounded-lg text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">Lampiran</button>
                     </div>
                 </div>

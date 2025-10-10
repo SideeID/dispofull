@@ -1,215 +1,507 @@
-# Database Design - Sistem Pengelolaan Surat Masuk & Keluar Universitas Bakrie
+# Database Design — E‑Surat Universitas Bakrie
 
-## Overview
+Dokumen ini merangkum rancangan database berdasarkan seluruh migration dan model Eloquent yang ada di repo ini. Mencakup ERD, deskripsi tabel, relasi, enum/state, indexing, serta catatan implementasi untuk fitur utama: tracking surat, arsip digital, tanda tangan elektronik/digital, penomoran otomatis, dan agenda PDF.
 
-Database ini dirancang untuk mendukung Sistem Pengelolaan Surat Masuk & Keluar Universitas Bakrie dengan fitur utama:
+## ERD (Mermaid)
 
--   Tracking Surat (monitor status surat masuk & keluar)
--   Penyimpanan Surat (arsip digital)
--   Tanda Tangan Elektronik
--   Pembuatan Surat Otomatis (nomor surat otomatis)
--   Pembuatan Agenda Surat (via web, output PDF)
+Diagram di bawah menggunakan Mermaid (dirender otomatis oleh GitHub/VS Code Markdown Preview).
 
-## Database Schema
+```mermaid
+erDiagram
+	USERS {
+		bigint id PK
+		string name
+		string username UNIQUE
+		string email UNIQUE
+		timestamp email_verified_at NULL
+		string password
+		string nip UNIQUE NULL
+		string phone NULL
+		string position NULL
+		enum role "admin|rektorat|unit_kerja"
+		enum status "active|inactive"
+		bigint department_id FK NULL
+		string profile_photo_path NULL
+		text signature_path NULL
+		text two_factor_secret NULL
+		text two_factor_recovery_codes NULL
+		timestamp two_factor_confirmed_at NULL
+		timestamps timestamps
+	}
 
-### 1. Tabel `users`
+	DEPARTMENTS {
+		bigint id PK
+		string name
+		string code UNIQUE
+		text description NULL
+		enum type "rektorat|unit_kerja"
+		boolean is_active
+		timestamps timestamps
+	}
 
-Menyimpan data pengguna sistem dengan 3 role: admin, rektorat, unit_kerja.
+	LETTER_TYPES {
+		bigint id PK
+		string name
+		string code UNIQUE
+		text description NULL
+		string number_format NULL
+		boolean is_active
+		timestamps timestamps
+	}
 
-**Kolom utama:**
+	LETTERS {
+		bigint id PK
+		string letter_number UNIQUE
+		string subject
+		text content NULL
+		date letter_date
+		enum direction "incoming|outgoing"
+		enum status "draft|pending|processed|archived|rejected"
+		enum priority "low|normal|high|urgent"
+		string sender_name NULL
+		string sender_address NULL
+		string recipient_name NULL
+		string recipient_address NULL
+		bigint letter_type_id FK
+		bigint created_by FK
+		bigint from_department_id FK NULL
+		bigint to_department_id FK NULL
+		string original_file_path NULL
+		string signed_file_path NULL
+		timestamp received_at NULL
+		timestamp processed_at NULL
+		timestamp archived_at NULL
+		text notes NULL
+		timestamps timestamps
+	}
 
--   `nip`: Nomor Induk Pegawai
--   `position`: Jabatan
--   `role`: admin | rektorat | unit_kerja
--   `department_id`: Relasi ke departemen
--   `signature_path`: Path tanda tangan digital
+	LETTER_DISPOSITIONS {
+		bigint id PK
+		bigint letter_id FK
+		bigint from_user_id FK
+		bigint to_user_id FK
+		bigint to_department_id FK NULL
+		text instruction
+		enum priority "low|normal|high|urgent"
+		date due_date NULL
+		enum status "pending|in_progress|completed|returned"
+		text response NULL
+		timestamp read_at NULL
+		timestamp completed_at NULL
+		timestamps timestamps
+	}
 
-### 2. Tabel `departments`
+	LETTER_ATTACHMENTS {
+		bigint id PK
+		bigint letter_id FK
+		string original_name
+		string file_name
+		string file_path
+		string file_type
+		bigint file_size
+		text description NULL
+		bigint uploaded_by FK
+		timestamps timestamps
+	}
 
-Menyimpan data departemen/unit kerja di universitas.
+	LETTER_SIGNATURES {
+		bigint id PK
+		bigint letter_id FK
+		bigint user_id FK
+		enum signature_type "digital|electronic"
+		string signature_path NULL
+		text signature_data NULL
+		timestamp signed_at NULL
+		string ip_address NULL
+		text user_agent NULL
+		enum status "pending|signed|rejected"
+		text notes NULL
+		timestamps timestamps
+	}
 
-**Kolom utama:**
+	LETTER_NUMBER_SEQUENCES {
+		bigint id PK
+		bigint letter_type_id FK
+		bigint department_id FK NULL
+		year year
+		uint last_number
+		string prefix NULL
+		string suffix NULL
+		timestamps timestamps
+		UNIQUE "(letter_type_id, department_id, year)"
+	}
 
--   `name`: Nama departemen
--   `code`: Kode departemen (untuk nomor surat)
--   `type`: rektorat | unit_kerja
--   `is_active`: Status aktif
+	LETTER_AGENDAS {
+		bigint id PK
+		string title
+		text description NULL
+		date agenda_date
+		date start_date
+		date end_date
+		enum type "daily|weekly|monthly"
+		bigint department_id FK NULL
+		bigint created_by FK
+		enum status "draft|published|archived"
+		string pdf_path NULL
+		json filters NULL
+		timestamps timestamps
+	}
 
-**Data default:** Rektorat, WR1, WR2, WR3, BAA, Fakultas, Program Studi, P3M, BTI
+	PERSONAL_ACCESS_TOKENS {
+		bigint id PK
+		morphs tokenable
+		string name
+		string token UNIQUE
+		text abilities NULL
+		timestamp last_used_at NULL
+		timestamp expires_at NULL
+		timestamps timestamps
+	}
 
-### 3. Tabel `letter_types`
+	SESSIONS {
+		string id PK
+		bigint user_id NULL INDEX
+		string ip_address NULL
+		text user_agent NULL
+		text payload
+		int last_activity INDEX
+	}
 
-Menyimpan jenis-jenis surat yang dapat dibuat.
+	FAILED_JOBS {
+		bigint id PK
+		string uuid UNIQUE
+		text connection
+		text queue
+		longtext payload
+		longtext exception
+		timestamp failed_at
+	}
 
-**Kolom utama:**
+	%% Relationships
+	DEPARTMENTS ||--o{ USERS : "department_id"
+	LETTER_TYPES ||--o{ LETTERS : "letter_type_id"
+	USERS ||--o{ LETTERS : "created_by"
+	DEPARTMENTS ||--o{ LETTERS : "from_department_id"
+	DEPARTMENTS ||--o{ LETTERS : "to_department_id"
 
--   `name`: Nama jenis surat
--   `code`: Kode untuk nomor surat
--   `number_format`: Format nomor surat (template)
+	LETTERS ||--o{ LETTER_DISPOSITIONS : "letter_id"
+	USERS ||--o{ LETTER_DISPOSITIONS : "from_user_id"
+	USERS ||--o{ LETTER_DISPOSITIONS : "to_user_id"
+	DEPARTMENTS ||--o{ LETTER_DISPOSITIONS : "to_department_id"
 
-**Data default:** SK, ST, SE, SU, SP, SKet, SR, ND, BA, SPj, SM
+	LETTERS ||--o{ LETTER_ATTACHMENTS : "letter_id"
+	USERS ||--o{ LETTER_ATTACHMENTS : "uploaded_by"
 
-### 4. Tabel `letters`
+	LETTERS ||--o{ LETTER_SIGNATURES : "letter_id"
+	USERS ||--o{ LETTER_SIGNATURES : "user_id"
 
-Tabel utama untuk menyimpan data surat.
+	LETTER_TYPES ||--o{ LETTER_NUMBER_SEQUENCES : "letter_type_id"
+	DEPARTMENTS ||--o{ LETTER_NUMBER_SEQUENCES : "department_id"
 
-**Kolom utama:**
-
--   `letter_number`: Nomor surat (auto-generated)
--   `subject`: Perihal surat
--   `content`: Isi surat
--   `direction`: incoming | outgoing
--   `status`: draft | pending | processed | archived | rejected
--   `priority`: low | normal | high | urgent
--   `letter_type_id`: Relasi ke jenis surat
--   `from_department_id` / `to_department_id`: Departemen pengirim/penerima
--   `original_file_path` / `signed_file_path`: Path file surat
-
-### 5. Tabel `letter_dispositions`
-
-Menyimpan data disposisi surat (instruksi tindak lanjut).
-
-**Kolom utama:**
-
--   `letter_id`: Relasi ke surat
--   `from_user_id` / `to_user_id`: User yang memberi/menerima disposisi
--   `instruction`: Instruksi disposisi
--   `due_date`: Batas waktu penyelesaian
--   `status`: pending | in_progress | completed | returned
-
-### 6. Tabel `letter_attachments`
-
-Menyimpan lampiran surat.
-
-**Kolom utama:**
-
--   `letter_id`: Relasi ke surat
--   `original_name` / `file_name`: Nama file asli/disimpan
--   `file_path`: Path file
--   `file_size`: Ukuran file
-
-### 7. Tabel `letter_number_sequences`
-
-Mengelola sequence nomor surat otomatis per jenis surat dan departemen.
-
-**Kolom utama:**
-
--   `letter_type_id`: Jenis surat
--   `department_id`: Departemen
--   `year`: Tahun
--   `last_number`: Nomor terakhir yang digunakan
-
-### 8. Tabel `letter_signatures`
-
-Menyimpan data tanda tangan elektronik.
-
-**Kolom utama:**
-
--   `letter_id`: Relasi ke surat
--   `user_id`: User yang menandatangani
--   `signature_type`: digital | electronic
--   `signature_data`: Data tanda tangan (base64)
--   `signed_at`: Waktu penandatanganan
-
-### 9. Tabel `letter_agendas`
-
-Menyimpan data agenda surat untuk laporan.
-
-**Kolom utama:**
-
--   `title`: Judul agenda
--   `start_date` / `end_date`: Periode surat
--   `type`: daily | weekly | monthly
--   `filters`: Kriteria filter (JSON)
--   `pdf_path`: Path file PDF agenda
-
-## Models dan Relationships
-
-### Model Relationships:
-
--   `User` belongsTo `Department`
--   `Department` hasMany `Users`, `Letters`, `LetterAgendas`
--   `Letter` belongsTo `LetterType`, `User`, `Department`
--   `Letter` hasMany `LetterDispositions`, `LetterAttachments`, `LetterSignatures`
--   `LetterType` hasMany `Letters`, `LetterNumberSequences`
-
-### Key Methods:
-
--   `LetterNumberSequence::generateLetterNumber()`: Generate nomor surat otomatis
--   `Letter::isSigned()`: Cek status tanda tangan
--   `LetterDisposition::isOverdue()`: Cek disposisi terlambat
--   `LetterAgenda::getFilteredLetters()`: Ambil surat sesuai filter agenda
-
-## User Roles & Permissions
-
-### 1. Admin (BTI)
-
--   Mengelola sistem & pemeliharaan aplikasi
--   Monitoring performa aplikasi
--   Pengaturan akses dan role pengguna
-
-### 2. Rektorat
-
--   Dashboard
--   Surat Masuk
--   Surat Tugas
--   History Disposisi
--   Inbox Surat Tugas
--   Membuat/menindaklanjuti surat tugas
--   Arsip Surat Tugas
-
-### 3. Unit Kerja (BAA, Staff Prodi, dll)
-
--   Dashboard
--   Surat Masuk
--   Buat Surat
--   Arsip Surat Tugas
-
-## Seeder Data
-
-Database sudah dilengkapi dengan data awal:
-
--   13 Departemen (Rektorat + Unit Kerja)
--   11 Jenis Surat
--   4 User sample dengan role berbeda
-
-## Migration Files
-
-1. `2014_10_12_000000_create_users_table.php`
-2. `2025_09_26_031335_create_departments_table.php`
-3. `2025_09_26_031343_create_letter_types_table.php`
-4. `2025_09_26_031405_create_letters_table.php`
-5. `2025_09_26_031412_create_letter_dispositions_table.php`
-6. `2025_09_26_031418_create_letter_attachments_table.php`
-7. `2025_09_26_031424_create_letter_number_sequences_table.php`
-8. `2025_09_26_031431_create_letter_signatures_table.php`
-9. `2025_09_26_031436_create_letter_agendas_table.php`
-10. `2025_09_26_032012_add_foreign_keys_to_users_table.php`
-
-## Usage
-
-Untuk menggunakan database ini:
-
-1. Jalankan migrasi:
-
-```bash
-php artisan migrate:fresh --seed
+	DEPARTMENTS ||--o{ LETTER_AGENDAS : "department_id"
+	USERS ||--o{ LETTER_AGENDAS : "created_by"
 ```
 
-2. Login dengan user sample:
+Catatan: Tabel pendukung standar Laravel (sessions, personal_access_tokens, failed_jobs) disertakan untuk kelengkapan namun tidak menjadi domain inti.
 
--   Admin: admin@bakrie.ac.id / password: 123
--   Rektor: rektor@bakrie.ac.id / password: 123
--   Kepala BAA: baa@bakrie.ac.id / password: 123
--   Staff Prodi: ti@bakrie.ac.id / password: 123
+---
 
-3. Gunakan model relationships untuk query data:
+## Ringkasan Sistem
 
-```php
-// Ambil surat dengan disposisi
-$letters = Letter::with(['dispositions', 'attachments', 'signatures'])->get();
+E‑Surat mengelola surat masuk/keluar, disposisi, lampiran, penomoran otomatis, tanda tangan, dan agenda PDF. Role: admin, rektorat, unit_kerja. Dokumen ini memetakan tabel, relasi, state machine, serta alur data untuk fitur:
 
-// Generate nomor surat otomatis
-$sequence = LetterNumberSequence::findOrCreate($letterTypeId, $departmentId);
-$letterNumber = $sequence->generateLetterNumber();
-```
+-   Tracking surat (masuk & keluar)
+-   Arsip digital
+-   Tanda tangan elektronik/digital (opsional)
+-   Penomoran otomatis
+-   Agenda surat (web → PDF)
+
+---
+
+## Deskripsi Entitas dan Tabel
+
+### users
+
+Identitas dan otorisasi pengguna.
+
+Kolom utama:
+
+-   id (PK)
+-   name, username (unique), email (unique), password
+-   email_verified_at (nullable)
+-   nip (unique, nullable), phone (nullable), position (nullable)
+-   role enum: admin|rektorat|unit_kerja (default unit_kerja)
+-   status enum: active|inactive (default active)
+-   department_id (FK → departments.id, nullable, ON DELETE SET NULL)
+-   profile_photo_path (nullable), signature_path (nullable)
+-   two_factor_secret, two_factor_recovery_codes, two_factor_confirmed_at (opsional via Fortify)
+-   timestamps
+
+Relasi Eloquent:
+
+-   belongsTo department
+-   hasMany: createdLetters, sentDispositions, receivedDispositions, uploadedAttachments, letterSignatures, createdAgendas
+
+Index/Constraint: username unique, email unique, department_id FK
+
+### departments
+
+Master unit kerja/rektorat.
+
+Kolom:
+
+-   id (PK), name, code (unique), description (nullable)
+-   type enum: rektorat|unit_kerja (default unit_kerja)
+-   is_active boolean (default true)
+-   timestamps
+
+Relasi:
+
+-   hasMany: users, lettersFrom (from_department_id), lettersTo (to_department_id), letterNumberSequences, letterAgendas, letterDispositions (to_department_id)
+
+### letter_types
+
+Master jenis surat.
+
+Kolom:
+
+-   id (PK), name, code (unique), description (nullable)
+-   number_format (nullable)
+-   is_active boolean (default true)
+-   timestamps
+
+Relasi: hasMany letters, letterNumberSequences
+
+### letters
+
+Entitas surat (masuk/keluar) termasuk konten, status, dan tracking.
+
+Kolom:
+
+-   id (PK)
+-   letter_number (unique)
+-   subject, content (nullable)
+-   letter_date (date)
+-   direction enum: incoming|outgoing
+-   status enum: draft|pending|processed|archived|rejected (default draft)
+-   priority enum: low|normal|high|urgent (default normal)
+-   sender_name/address (nullable), recipient_name/address (nullable)
+-   letter_type_id (FK → letter_types.id, RESTRICT)
+-   created_by (FK → users.id, RESTRICT)
+-   from_department_id, to_department_id (FK → departments.id, nullable, ON DELETE SET NULL)
+-   original_file_path, signed_file_path (nullable)
+-   received_at, processed_at, archived_at (nullable)
+-   notes (nullable), timestamps
+
+Index: (direction,status), letter_date, created_by
+
+Relasi: belongsTo letterType, creator, fromDepartment, toDepartment; hasMany dispositions, attachments, signatures
+
+### letter_dispositions
+
+Pencatatan disposisi surat antar user/departemen.
+
+Kolom:
+
+-   id (PK)
+-   letter_id (FK → letters.id, CASCADE)
+-   from_user_id, to_user_id (FK → users.id, RESTRICT)
+-   to_department_id (FK → departments.id, nullable, SET NULL)
+-   instruction (text), priority enum, due_date (nullable)
+-   status enum: pending|in_progress|completed|returned (default pending)
+-   response (nullable), read_at (nullable), completed_at (nullable)
+-   timestamps
+
+Index: letter_id, (to_user_id,status), due_date
+
+Relasi: belongsTo letter, fromUser, toUser, toDepartment
+
+### letter_attachments
+
+Lampiran file untuk surat.
+
+Kolom:
+
+-   id (PK)
+-   letter_id (FK → letters.id, CASCADE)
+-   original_name, file_name, file_path, file_type, file_size
+-   description (nullable)
+-   uploaded_by (FK → users.id, RESTRICT)
+-   timestamps
+
+Index: letter_id
+
+Relasi: belongsTo letter, uploader
+
+### letter_signatures
+
+Tanda tangan surat (digital/electronic).
+
+Kolom:
+
+-   id (PK)
+-   letter_id (FK → letters.id, CASCADE)
+-   user_id (FK → users.id, RESTRICT)
+-   signature_type enum: digital|electronic (default digital)
+-   signature_path (nullable), signature_data (nullable)
+-   signed_at (nullable), ip_address (nullable), user_agent (nullable)
+-   status enum: pending|signed|rejected (default pending)
+-   notes (nullable), timestamps
+
+Index: letter_id, user_id
+
+Relasi: belongsTo letter, user
+
+### letter_number_sequences
+
+Penomoran otomatis per kombinasi (jenis surat, departemen opsional, tahun).
+
+Kolom:
+
+-   id (PK)
+-   letter_type_id (FK → letter_types.id, CASCADE)
+-   department_id (FK → departments.id, CASCADE, nullable)
+-   year (YEAR)
+-   last_number (uint, default 0)
+-   prefix, suffix (nullable)
+-   timestamps
+
+Unique: (letter_type_id, department_id, year)
+
+Relasi: belongsTo letterType, department
+
+Perilaku (model): getNextNumber(), generateLetterNumber(), generateUniqueLetterNumber(), findOrCreate()
+
+### letter_agendas
+
+Agenda surat (periode, filter, output PDF).
+
+Kolom:
+
+-   id (PK)
+-   title, description (nullable)
+-   agenda_date, start_date, end_date
+-   type enum: daily|weekly|monthly (default monthly)
+-   department_id (FK → departments.id, SET NULL, nullable)
+-   created_by (FK → users.id, RESTRICT)
+-   status enum: draft|published|archived (default draft)
+-   pdf_path (nullable)
+-   filters (json, nullable)
+-   timestamps
+
+Index: agenda_date, department_id, status
+
+Relasi: belongsTo department, creator
+
+### Tabel Pendukung
+
+-   sessions: penyimpanan sesi Laravel
+-   personal_access_tokens: token API (Sanctum)
+-   failed_jobs: log kegagalan queue
+
+---
+
+## State Machine (Enum/Status)
+
+-   users.role: admin | rektorat | unit_kerja
+-   users.status: active | inactive
+-   departments.type: rektorat | unit_kerja
+-   letters.direction: incoming | outgoing
+-   letters.status: draft → pending → processed → archived; atau pending → rejected
+-   letters.priority: low | normal | high | urgent
+-   letter_dispositions.status: pending → in_progress → completed; atau returned
+-   letter_dispositions.priority: low | normal | high | urgent
+-   letter_signatures.signature_type: digital | electronic
+-   letter_signatures.status: pending | signed | rejected
+-   letter_agendas.type: daily | weekly | monthly
+-   letter_agendas.status: draft | published | archived
+
+Pastikan logika aplikasi menegakkan transisi yang valid dan sinkron dengan proses bisnis.
+
+---
+
+## Penomoran Surat
+
+Sumber data: `letter_number_sequences` digabung `letter_types.number_format`.
+
+-   Dimensi: `letter_type_id`, `department_id` (opsional), `year`
+-   `last_number` bertambah saat generate
+-   Placeholder format yang didukung model:
+    -   {number} — nomor ber-padding (default 3 digit)
+    -   {code} — kode jenis surat (`letter_types.code`)
+    -   {department_code} — kode departemen (jika sequence terkait departemen)
+    -   {month} — 01..12
+    -   {month_roman} — I..XII
+    -   {year} — YYYY
+    -   {prefix} / {suffix} — dari sequence
+
+Fallback format default (di model):
+`{number}/UB/R-{code}/{month_roman}/{year}`
+
+Contoh yang umum dipakai kampus:
+`{number}/UB/{department_code}/{code}/{month_roman}/{year}`
+
+---
+
+## Mapping Fitur ↔ Tabel
+
+-   Tracking Surat: `letters` (status, timestamps) + `letter_dispositions` + `letter_signatures`
+-   Arsip Digital: `letters.original_file_path`/`signed_file_path`, `letter_attachments`
+-   Tanda Tangan: `letter_signatures` (status, signed_at, ip, user_agent, path/data)
+-   Penomoran: `letter_number_sequences` + `letter_types.number_format` + `letters.letter_number`
+-   Agenda PDF: `letter_agendas.filters` → query `letters` → simpan ke `pdf_path`
+
+---
+
+## Indeks & Kinerja
+
+-   letters: (direction, status), letter_date, created_by
+-   letter_dispositions: letter_id, (to_user_id, status), due_date
+-   letter_attachments: letter_id
+-   letter_signatures: letter_id, user_id
+-   letter_agendas: agenda_date, department_id, status
+-   Unique constraints: users.username, users.email, departments.code, letter_types.code, letters.letter_number, letter_number_sequences (type, department, year)
+
+---
+
+## Seeder Jenis Surat (usulan kode)
+
+Silakan sesuaikan di `database/seeders/LetterTypeSeeder.php`.
+
+1. Surat Keluar → OUT
+2. Surat Edaran → SE
+3. Surat Tugas → ST
+4. Surat Pengumuman → PENG
+5. Internal Memo → IM
+6. Surat Ijin Atasan → SIA
+7. Surat Perintah → SPR
+8. Surat Keterangan → SKET
+9. Surat Rekomendasi → SR
+10. Surat Pernyataan → SPN
+11. Surat Peringatan → SP
+12. Surat Pernyataan Tanggung Jawab Mutlak → SPTJM
+13. Surat Kuasa → SKU
+14. Pakta Integritas → PI
+15. Surat Perintah Kerja → SPK
+16. Surat Keputusan Rektor → SKR
+17. Peraturan Rektor → PR
+18. Peraturan Universitas → PU
+19. MOU → MOU
+20. PKS → PKS
+
+Rekomendasi number_format default: `{number}/UB/{department_code}/{code}/{month_roman}/{year}`
+
+---
+
+## Catatan Desain & Rekomendasi
+
+-   Draft tanpa nomor: saat ini `letters.letter_number` adalah NOT NULL dan UNIQUE. Jika ingin membuat draft tanpa nomor, pertimbangkan menjadikannya nullable dan mengisi saat submit; atau gunakan placeholder unik (UUID) lalu ganti saat submit.
+-   Konsistensi path file: `original_file_path` (file awal), `signed_file_path` (final), lampiran di `letter_attachments.file_path`.
+-   `letter_number_sequences.department_id` nullable memungkinkan skema penomoran global atau per-departemen.
+-   Terapkan policy/authorization per role untuk query sensitif (misal batasan akses per departemen bagi unit_kerja).
+
+---
+
+## Versi dan Sumber
+
+Sesuai migrasi di `database/migrations` dan model di `app/Models` pada branch saat ini. Jika skema berubah, perbarui ERD dan bagian yang relevan di dokumen ini.

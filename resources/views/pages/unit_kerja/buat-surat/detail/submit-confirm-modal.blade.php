@@ -39,7 +39,9 @@
 			</div>
 			<div class="flex items-center justify-end gap-3 pt-2">
 				<button type="button" @click="closeAll()" class="px-4 py-2 rounded-lg text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">Batal</button>
-				<button type="button" @click="submit()" class="px-4 py-2 rounded-lg text-sm bg-violet-600 hover:bg-violet-500 text-white flex items-center gap-2"><i data-feather='send' class='w-4 h-4'></i>Ajukan</button>
+				<button type="button" @click="submit()" :disabled="loadingSubmit" :class="{'opacity-60 cursor-not-allowed': loadingSubmit}" class="px-4 py-2 rounded-lg text-sm bg-violet-600 hover:bg-violet-500 text-white flex items-center gap-2">
+					<span x-text="loadingSubmit ? 'Mengajukan...' : 'Ajukan'"></span>
+				</button>
 			</div>
 		</div>
 	</div>

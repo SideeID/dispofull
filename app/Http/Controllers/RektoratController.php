@@ -18,8 +18,25 @@ class RektoratController extends Controller
     public function suratMasuk()
     {
         // Ambil 50 surat masuk terbaru untuk initial render FE (server-side hydration)
+        $user = request()->user();
+        $deptId = $user?->department_id;
+        $userId = $user?->id;
+
         $letters = Letter::query()
-            ->where('direction','incoming')
+            ->where(function($q) use ($deptId, $userId){
+                $q->where(function($w) use ($deptId){
+                    $w->where('direction','incoming')
+                      ->when($deptId, function($qq) use ($deptId){
+                          $qq->where(function($x) use ($deptId){
+                              $x->where('to_department_id',$deptId)
+                                ->orWhereNull('to_department_id');
+                          });
+                      });
+                })
+                ->orWhereHas('signatures', function($s) use ($userId){
+                    $s->where('user_id', $userId);
+                });
+            })
             ->with(['fromDepartment:id,name,code', 'toDepartment:id,name,code', 'letterType:id,code'])
             ->withCount(['attachments','dispositions'])
             ->latest('letter_date')
@@ -57,20 +74,27 @@ class RektoratController extends Controller
         return view('pages.rektorat.arsip-surat-tugas.index');
     }
 
-    /* ============================= */
-    /*  API JSON: Surat Masuk (Rektor)
-    /* ============================= */
-
-    /**
-     * List incoming letters (surat masuk) with filters.
-     * Query params: q (search), status, priority, date_from, date_to, has_disposition, has_attachment, per_page
-     */
     public function incomingIndex(Request $request)
     {
         $perPage = (int)($request->integer('per_page') ?: 15);
+        $deptId = $request->user()?->department_id;
+        $userId = $request->user()?->id;
 
         $query = Letter::query()
-            ->where('direction', 'incoming')
+            ->where(function($q) use ($deptId, $userId){
+                $q->where(function($w) use ($deptId){
+                    $w->where('direction', 'incoming')
+                      ->when($deptId, function($qq) use ($deptId){
+                          $qq->where(function($x) use ($deptId){
+                              $x->where('to_department_id',$deptId)
+                                ->orWhereNull('to_department_id');
+                          });
+                      });
+                })
+                ->orWhereHas('signatures', function($s) use ($userId){
+                    $s->where('user_id',$userId);
+                });
+            })
             ->with(['letterType:id,code,name', 'fromDepartment:id,name,code', 'toDepartment:id,name,code', 'dispositions:id,letter_id,status'])
             ->withCount(['attachments', 'dispositions']);
 
@@ -125,11 +149,9 @@ class RektoratController extends Controller
     }
 
     /** Show a single incoming letter detail. */
-    public function incomingShow(Letter $letter)
+    public function incomingShow(Letter $letter, Request $request)
     {
-        if ($letter->direction !== 'incoming') {
-            abort(404);
-        }
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         $letter->load([
             'letterType:id,code,name',
             'fromDepartment:id,name,code',
@@ -145,9 +167,9 @@ class RektoratController extends Controller
     }
 
     /** Mark letter as received (set received_at & status pending if still draft). */
-    public function incomingMarkReceived(Letter $letter)
+    public function incomingMarkReceived(Letter $letter, Request $request)
     {
-        if ($letter->direction !== 'incoming') abort(404);
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         if (!$letter->received_at) {
             $letter->received_at = now();
         }
@@ -159,9 +181,9 @@ class RektoratController extends Controller
     }
 
     /** List dispositions for incoming letter. */
-    public function incomingDispositionsIndex(Letter $letter)
+    public function incomingDispositionsIndex(Letter $letter, Request $request)
     {
-        if ($letter->direction !== 'incoming') abort(404);
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         $dispositions = $letter->dispositions()->with(['fromUser:id,name,position','toUser:id,name,position','toDepartment:id,name,code'])->latest()->get();
         return response()->json($dispositions);
     }
@@ -169,7 +191,7 @@ class RektoratController extends Controller
     /** Store new disposition for incoming letter. */
     public function incomingDispositionsStore(Request $request, Letter $letter)
     {
-        if ($letter->direction !== 'incoming') abort(404);
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         $data = $request->validate([
             'to_user_id' => 'required|exists:users,id',
             'to_department_id' => 'nullable|exists:departments,id',
@@ -185,9 +207,9 @@ class RektoratController extends Controller
     }
 
     /** List attachments for incoming letter. */
-    public function incomingAttachmentsIndex(Letter $letter)
+    public function incomingAttachmentsIndex(Letter $letter, Request $request)
     {
-        if ($letter->direction !== 'incoming') abort(404);
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         $attachments = $letter->attachments()->select('id','letter_id','original_name','file_name','file_path','file_type','file_size','created_at')->latest()->get();
         return response()->json($attachments);
     }
@@ -195,7 +217,7 @@ class RektoratController extends Controller
     /** Store attachment for incoming letter. */
     public function incomingAttachmentsStore(Request $request, Letter $letter)
     {
-        if ($letter->direction !== 'incoming') abort(404);
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         $validated = $request->validate([
             'file' => 'required|file|max:5120|mimes:pdf,jpg,jpeg,png',
             'description' => 'nullable|string|max:500'
@@ -219,9 +241,9 @@ class RektoratController extends Controller
     }
 
     /** Get unified history log for a letter (attachments, dispositions, status changes). */
-    public function incomingHistory(Letter $letter)
+    public function incomingHistory(Letter $letter, Request $request)
     {
-        if ($letter->direction !== 'incoming') abort(404);
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         $letter->load(['attachments.uploader:id,name','dispositions.fromUser:id,name','dispositions.toUser:id,name']);
         $logs = [];
         if ($letter->received_at) {
@@ -254,9 +276,9 @@ class RektoratController extends Controller
     }
 
     /** List signatures for a letter. */
-    public function incomingSignaturesIndex(Letter $letter)
+    public function incomingSignaturesIndex(Letter $letter, Request $request)
     {
-        if ($letter->direction !== 'incoming') abort(404);
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         $signatures = $letter->signatures()->with('user:id,name,position')->latest()->get()->map(fn($s)=>[
             'id'=>$s->id,
             'user'=>$s->user?->name,
@@ -272,7 +294,7 @@ class RektoratController extends Controller
     /** Store signature (digital/electronic) for letter. */
     public function incomingSignaturesStore(Request $request, Letter $letter)
     {
-        if ($letter->direction !== 'incoming') abort(404);
+        if (!$this->visibleToRektor($request, $letter)) abort(404);
         $data = $request->validate([
             'signature_type' => 'required|in:digital,electronic',
             'signature_data' => 'nullable|string',
@@ -335,7 +357,6 @@ class RektoratController extends Controller
             'status' => $displayStatus,
             'attachments' => $letter->attachments_count ?? ($letter->attachments?->count() ?? 0),
             'dispositions' => $letter->dispositions_count ?? ($dispositions->count()),
-            'agenda' => false, // Placeholder - belum ada relasi langsung
         ];
 
         if ($includeRelations) {
@@ -357,5 +378,17 @@ class RektoratController extends Controller
         }
 
         return $data;
+    }
+
+    /** Determine if a letter is visible to current rektor user. */
+    private function visibleToRektor(Request $request, Letter $letter): bool
+    {
+        $deptId = $request->user()?->department_id;
+        $userId = $request->user()?->id;
+        if ($letter->direction === 'incoming') {
+            if (!$deptId) return true;
+            return $letter->to_department_id === $deptId || is_null($letter->to_department_id);
+        }
+        return $letter->signatures()->where('user_id',$userId)->exists();
     }
 }

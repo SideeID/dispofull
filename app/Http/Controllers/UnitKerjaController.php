@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\Department;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 
 class UnitKerjaController extends Controller
 {
@@ -137,6 +138,42 @@ class UnitKerjaController extends Controller
     /* =============================================================
      *  API: DRAFT LETTER CRUD
      * ============================================================= */
+
+    /**
+     * Upload temporary attachment (not tied to a Letter yet).
+     * Frontend expects: POST /unit-kerja/api/attachments/temp with 'file'.
+     * Response shape used by Alpine:
+     * {
+     *   success: true,
+     *   data: { id, nama, size_human, path }
+     * }
+     */
+    public function uploadTempAttachment(Request $request)
+    {
+        $user = Auth::user();
+        $validated = Validator::make($request->all(), [
+            'file' => ['required','file','max:5120','mimes:pdf,doc,docx,zip,jpg,jpeg,png']
+        ])->validate();
+
+        $uploaded = $request->file('file');
+        // Store under a temp area per-user to avoid clashes
+        $dir = 'temp/attachments/'.($user?->id ?? 'guest');
+        $storedPath = $uploaded->store($dir);
+
+        $bytes = $uploaded->getSize();
+        $human = $this->humanFileSize($bytes);
+        $data = [
+            'id' => (string) Str::uuid(),
+            'nama' => $uploaded->getClientOriginalName(),
+            'size_human' => $human,
+            'path' => $storedPath,
+        ];
+
+        // Optionally, you might persist temp metadata in cache/session for later attach to draft
+        // but for now we just return the stored path so client can include it when saving draft.
+
+        return response()->json(['success' => true, 'data' => $data]);
+    }
 
     /**
      * Store a new draft letter.
@@ -349,12 +386,14 @@ class UnitKerjaController extends Controller
         $nextNumber = $sequence->last_number + 1; // do not increment
         $letterType = $sequence->letterType()->first();
         $department = $sequence->department()->first();
-        $format = $letterType->number_format ?? '{number}/{code}/{month}/{year}';
+        // Update default preview format to UB/R-{code}/{month_roman}/{year}
+        $format = $letterType->number_format ?? '{number}/UB/R-{code}/{month_roman}/{year}';
         $replacements = [
             '{number}' => str_pad($nextNumber, 3, '0', STR_PAD_LEFT),
             '{code}' => $letterType->code,
             '{department_code}' => $department->code ?? '',
             '{month}' => now()->format('m'),
+            '{month_roman}' => ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'][(int) now()->format('n')],
             '{year}' => $sequence->year,
             '{prefix}' => $validated['prefix'] ?? ($sequence->prefix ?? ''),
             '{suffix}' => $validated['suffix'] ?? ($sequence->suffix ?? '')
@@ -407,7 +446,8 @@ class UnitKerjaController extends Controller
             if(isset($validated['suffix'])) $updates['suffix'] = $validated['suffix'];
             if($updates) $sequence->update($updates);
 
-            $finalNumber = $sequence->generateLetterNumber();
+            // Ensure uniqueness on letter_number
+            $finalNumber = $sequence->generateUniqueLetterNumber();
 
             // Update letter to pending
             $letter->update([
@@ -433,13 +473,159 @@ class UnitKerjaController extends Controller
         return response()->json(['success'=>true,'message'=>'Surat diajukan untuk tanda tangan.','data'=>$letter->fresh('signatures')]);
     }
 
-    /* =============================================================
-     *  Helpers
-     * ============================================================= */
+    public function submitDirect(Request $request)
+    {
+        $user = Auth::user();
+
+        $validated = Validator::make($request->all(), [
+            'letter_type_id' => ['required','integer','exists:letter_types,id'],
+            'perihal' => ['required','string','max:255'],
+            'tanggal' => ['required','date'],
+            'prioritas' => ['nullable', Rule::in(['low','normal','high','urgent'])],
+            'klasifikasi' => ['nullable','string','max:50'],
+            'ringkasan' => ['nullable','string'],
+            'konten' => ['nullable','string'],
+            'catatanInternal' => ['nullable','string'],
+            'tujuanInternal' => ['array'],
+            'tujuanInternal.*' => ['string','max:150'],
+            'tujuanExternal' => ['array'],
+            'tujuanExternal.*' => ['string','max:255'],
+            'participants' => ['array'],
+            'signer_user_id' => ['required','integer','exists:users,id'],
+            // numbering hints
+            'department_id' => ['nullable','integer','exists:departments,id'],
+            'prefix' => ['nullable','string','max:30'],
+            'suffix' => ['nullable','string','max:30'],
+            // temp attachments from UI: [{id, nama, path, size_human}]
+            'attachments' => ['array'],
+            'attachments.*.path' => ['required','string'],
+            'attachments.*.nama' => ['required','string'],
+        ])->validate();
+
+        // Resolve recipients
+        $internal = $validated['tujuanInternal'] ?? [];
+        $external = $validated['tujuanExternal'] ?? [];
+        $recipientName = count($internal) ? implode(', ', $internal) : ($external[0] ?? null);
+        $recipientAddress = count($external) ? implode('; ', $external) : null;
+
+        DB::beginTransaction();
+        try {
+            // 1) Create draft
+            $draftNumber = $this->generateDraftNumber($validated['letter_type_id'], $user->id);
+            $letter = Letter::create([
+                'letter_number' => $draftNumber,
+                'subject' => $validated['perihal'],
+                'content' => $validated['konten'] ?? null,
+                'letter_date' => $validated['tanggal'],
+                'direction' => 'outgoing',
+                'status' => 'draft',
+                'priority' => $validated['prioritas'] ?? 'normal',
+                'recipient_name' => $recipientName,
+                'recipient_address' => $recipientAddress,
+                'letter_type_id' => $validated['letter_type_id'],
+                'created_by' => $user->id,
+                'from_department_id' => $user->department_id,
+                'to_department_id' => null,
+                'notes' => json_encode([
+                    'ringkasan' => $validated['ringkasan'] ?? null,
+                    'klasifikasi' => $validated['klasifikasi'] ?? null,
+                    'participants' => $validated['participants'] ?? [],
+                    'tujuanInternal' => $internal,
+                    'tujuanExternal' => $external,
+                    'catatanInternal' => $validated['catatanInternal'] ?? null,
+                ], JSON_UNESCAPED_UNICODE)
+            ]);
+
+            // 2) Move temp attachments and create records
+            $temps = $validated['attachments'] ?? [];
+            foreach ($temps as $t) {
+                $tempPath = $t['path'];
+                // Allow only files under current user's temp dir
+                $allowedPrefix = 'temp/attachments/'.($user->id);
+                if (!Str::startsWith($tempPath, $allowedPrefix)) {
+                    continue;
+                }
+                if (!Storage::exists($tempPath)) continue; // skip if missing
+
+                $fileName = basename($tempPath);
+                // Ensure unique name in destination to avoid overwrite
+                $destinationDir = 'letters/attachments';
+                $destinationPath = $destinationDir.'/'.$fileName;
+                if (Storage::exists($destinationPath)) {
+                    $name = pathinfo($fileName, PATHINFO_FILENAME);
+                    $ext = pathinfo($fileName, PATHINFO_EXTENSION);
+                    $destinationPath = $destinationDir.'/'.$name.'-'.uniqid().($ext?'.'.$ext:'');
+                }
+                Storage::move($tempPath, $destinationPath);
+
+                $size = Storage::size($destinationPath);
+                LetterAttachment::create([
+                    'letter_id' => $letter->id,
+                    'original_name' => $t['nama'],
+                    'file_name' => basename($destinationPath),
+                    'file_path' => $destinationPath,
+                    'file_type' => pathinfo($destinationPath, PATHINFO_EXTENSION),
+                    'file_size' => $size,
+                    'uploaded_by' => $user->id,
+                ]);
+            }
+
+            // 3) Lock sequence and finalize number
+            $seq = LetterNumberSequence::lockForUpdate()->firstOrCreate([
+                'letter_type_id' => $validated['letter_type_id'],
+                'department_id' => $validated['department_id'] ?? null,
+                'year' => now()->year
+            ], [ 'last_number' => 0 ]);
+            $updates = [];
+            if(isset($validated['prefix'])) $updates['prefix'] = $validated['prefix'];
+            if(isset($validated['suffix'])) $updates['suffix'] = $validated['suffix'];
+            if($updates) $seq->update($updates);
+
+            // Ensure uniqueness on letter_number
+            $finalNumber = $seq->generateUniqueLetterNumber();
+
+            // 4) Update letter status and number
+            $letter->update([
+                'letter_number' => $finalNumber,
+                'status' => 'pending'
+            ]);
+
+            // 5) Create signature task
+            $signature = LetterSignature::firstOrCreate([
+                'letter_id' => $letter->id,
+                'user_id' => $validated['signer_user_id']
+            ], [
+                'signature_type' => 'electronic',
+                'status' => 'pending'
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['success'=>false,'message'=>'Gagal mengajukan surat','error'=>$e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Surat berhasil diajukan untuk tanda tangan.',
+            'data' => $letter->load('signatures')
+        ], 201);
+    }
+
     private function generateDraftNumber(int $letterTypeId, int $userId): string
     {
         $ts = now()->format('YmdHis');
         $rand = substr(bin2hex(random_bytes(3)),0,6);
-        return "DRAFT/$letterTypeId/$userId/$ts/$rand"; // unique placeholder
+        return "DRAFT/$letterTypeId/$userId/$ts/$rand";
+    }
+
+    private function humanFileSize(int $bytes, int $decimals = 1): string
+    {
+        if ($bytes < 1024) return $bytes.' B';
+        $units = ['KB','MB','GB','TB'];
+        $factor = (int) floor((strlen((string) $bytes) - 1) / 3);
+        $factor = max(1, min($factor, count($units)));
+        $val = $bytes / pow(1024, $factor);
+        return number_format($val, $decimals).' '.$units[$factor-1];
     }
 }

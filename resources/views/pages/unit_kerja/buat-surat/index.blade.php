@@ -21,7 +21,7 @@
         participantSearch: '',
         manual: { nama: '', nip: '', jabatan: '' },
         form: { letter_type_id: '', jenis: '', perihal: '', tanggal: (new Date()).toISOString().slice(0, 10), prioritas: 'normal', klasifikasi: 'biasa', ringkasan: '', konten: '', catatanInternal: '', tujuanInternal: [], tujuanExternal: [], nomor: { prefix: '', seq: null, unit: '', tahun: (new Date()).getFullYear(), suffix: '' } },
-    openFlags: { showPreview: false, showParticipants: false, showAttachments: false, showTemplates: false, showSigner: false, showNumbering: false, showSubmitConfirm: false },
+        openFlags: { showPreview: false, showParticipants: false, showAttachments: false, showTemplates: false, showSigner: false, showNumbering: false, showSubmitConfirm: false },
         csrf() { const el = document.querySelector('meta[name=csrf-token]'); return el ? el.content : ''; },
         notify(msg, type = 'flash') {
             if (type === 'flash') this.flash = msg;
@@ -141,7 +141,7 @@
             const lt = this.letterTypes.find(t => t.id == this.form.letter_type_id);
             this.form.jenis = lt ? lt.name : '';
             if (!this.form.nomor.prefix && lt) {
-                if (lt.code) this.form.nomor.prefix = lt.code.toUpperCase();
+                if (lt.code) this.form.nomor.prefix = `UB/R-${lt.code.toUpperCase()}`;
                 else if (lt.name) this.form.nomor.prefix = lt.name.split(/\s+/).map(w => w[0]).join('').substring(0, 4).toUpperCase();
             }
             this.numberingPreview = null;
@@ -153,7 +153,7 @@
             const sRaw = this.form.nomor.seq;
             const u = this.form.nomor.unit?.trim();
             const y = this.form.nomor.tahun;
-            if (!p && !sRaw && !u && !y) return '';
+            if (!p && !sRaw && !u) return '';
             const pad = (v) => (v == null || v === '') ? '' : String(v).padStart(3, '0');
             const parts = [];
             if (p) parts.push(p);
@@ -170,6 +170,56 @@
             return 'Memuat nomor...';
         },
         async previewNumber() { if (!this.form.letter_type_id) return; try { const p = new URLSearchParams({ letter_type_id: this.form.letter_type_id, department_id: this.userDepartmentId || '' }); if (this.form.nomor.prefix) p.append('prefix', this.form.nomor.prefix); if (this.form.nomor.suffix) p.append('suffix', this.form.nomor.suffix); const r = await fetch(`/unit-kerja/api/letters/number/preview?${p.toString()}`); const j = await r.json(); if (j.success) { this.numberingPreview = j.data; if (this.form.nomor.seq === null) this.form.nomor.seq = j.data.sequence_next; } } catch (e) {} },
+        async submit() {
+            if (this.loadingSubmit) return;
+            // Basic client validations
+            if (!this.form.letter_type_id) { this.notify('Pilih jenis surat terlebih dahulu', 'error'); return; }
+            if (!this.form.perihal) { this.notify('Perihal wajib diisi', 'error'); return; }
+            if (!this.form.tanggal) { this.notify('Tanggal surat wajib diisi', 'error'); return; }
+            if (!this.signer || !this.signer.id) { this.notify('Pilih penandatangan terlebih dahulu', 'error'); return; }
+
+            const payload = {
+                letter_type_id: this.form.letter_type_id,
+                perihal: this.form.perihal,
+                tanggal: this.form.tanggal,
+                prioritas: this.form.prioritas,
+                klasifikasi: this.form.klasifikasi,
+                ringkasan: this.form.ringkasan,
+                konten: this.form.konten,
+                catatanInternal: this.form.catatanInternal,
+                tujuanInternal: this.form.tujuanInternal,
+                tujuanExternal: this.form.tujuanExternal,
+                participants: this.participants,
+                signer_user_id: this.signer.id,
+                department_id: this.userDepartmentId,
+                prefix: this.form.nomor.prefix,
+                suffix: this.form.nomor.suffix,
+                attachments: (this.attachments || []).map(a => ({ nama: a.nama, path: a.path }))
+            };
+
+            try {
+                this.loadingSubmit = true;
+                const r = await fetch('/unit-kerja/api/letters/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': this.csrf()
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const j = await r.json().catch(() => ({ success: false, message: 'Gagal mengajukan (invalid response)' }));
+                if (!r.ok || !j.success) throw new Error(j.message || 'Gagal mengajukan surat');
+
+                this.notify('Surat diajukan untuk tanda tangan.');
+                this.draftId = j.data?.id || null;
+                this.changed = false;
+                this.closeAll();
+            } catch (e) {
+                this.notify(e.message || 'Gagal mengajukan surat', 'error');
+            } finally {
+                this.loadingSubmit = false;
+            }
+        },
         resetForm() {
             if (!confirm('Reset form?')) return;
             this.draftId = null;
@@ -217,13 +267,13 @@
             const config = {
                 removePlugins: 'elementspath,resize',
                 toolbar: [
-                    { name: 'basicstyles', items: ['Bold','Italic','Underline','RemoveFormat'] },
-                    { name: 'paragraph', items: ['NumberedList','BulletedList','Blockquote'] },
-                    { name: 'links', items: ['Link','Unlink'] },
+                    { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'RemoveFormat'] },
+                    { name: 'paragraph', items: ['NumberedList', 'BulletedList', 'Blockquote'] },
+                    { name: 'links', items: ['Link', 'Unlink'] },
                     { name: 'insert', items: ['Table'] },
                     { name: 'styles', items: ['Format'] },
                     { name: 'tools', items: ['Maximize'] },
-                    { name: 'clipboard', items: ['Undo','Redo'] }
+                    { name: 'clipboard', items: ['Undo', 'Redo'] }
                 ],
                 allowedContent: true,
                 autoParagraph: true,
@@ -332,12 +382,12 @@
                             <option value="rahasia">Rahasia</option>
                         </select>
                     </div>
-                    <div class="flex flex-col gap-1.5 md:col-span-2 lg:col-span-3">
+                    {{-- <div class="flex flex-col gap-1.5 md:col-span-2 lg:col-span-3">
                         <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Ringkasan Singkat</label>
                         <textarea rows="2" x-model="form.ringkasan" @input="markChanged()"
                             class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500"
                             placeholder="Ringkasan isi pokok surat..."></textarea>
-                    </div>
+                    </div> --}}
                 </div>
             </div>
 
@@ -483,19 +533,18 @@
                     </div>
                 </div>
                 <div class="p-6 space-y-4 text-sm">
-            <div>
-            <div id="editor" x-ref="ckeditorRoot" class="min-h-[220px] border border-dashed border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 focus:outline-none" contenteditable="true">
-                <p class="text-xs text-gray-400" x-show="!(form.konten||'').length">Tulis isi surat di sini...</p>
-            </div>
-            <textarea x-show="false" x-model="form.konten"></textarea>
-            <div class="mt-2 text-[10px] text-gray-400" x-text="contentLength() + ' karakter'"></div>
-            </div>
                     <div>
-                        <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Catatan Internal (Tidak
-                            muncul di surat)</label>
-                        <textarea rows="3" x-model="form.catatanInternal" @input="markChanged()"
-                            class="mt-1 w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500 text-sm"
-                            placeholder="Catatan internal untuk unit kerja..."></textarea>
+                        <div class="relative">
+                            <div x-show="!(form.konten||'').length"
+                                class="absolute inset-0 pointer-events-none flex items-start">
+                                <p class="text-xs text-gray-400 px-3 py-2">Tulis isi surat di sini...</p>
+                            </div>
+                            <div id="editor" x-ref="ckeditorRoot"
+                                class="min-h-[220px] border border-dashed border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 focus:outline-none"
+                                contenteditable="true"></div>
+                        </div>
+                        <textarea x-show="false" x-model="form.konten"></textarea>
+                        <div class="mt-2 text-[10px] text-gray-400" x-text="contentLength() + ' karakter'"></div>
                     </div>
                 </div>
             </div>
@@ -511,9 +560,6 @@
                             class="w-2 h-2 rounded-full bg-slate-400"></span>Normal</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button type="button" @click="saveDraft()"
-                        class="px-4 py-2 rounded-lg text-sm bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"><i
-                            data-feather='save' class='w-4 h-4'></i>Simpan Draft</button>
                     <button type="button" @click="open('showPreview')"
                         class="px-4 py-2 rounded-lg text-sm bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-2"><i
                             data-feather='eye' class='w-4 h-4'></i>Pratinjau</button>
