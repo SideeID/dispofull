@@ -461,3 +461,228 @@ Rekomendasi number_format default: `{number}/UB/{department_code}/{code}/{month_
 ## Versi dan Sumber
 
 Sesuai migrasi di `database/migrations` dan model di `app/Models` pada branch saat ini. Jika skema berubah, perbarui ERD dan bagian yang relevan di dokumen ini.
+
+---
+
+## UML Diagrams
+
+Di bawah ini adalah kumpulan diagram UML yang menggambarkan sistem E‑Surat dari sisi use case, class, sequence (alur utama), dan state untuk entitas Surat. GitHub tidak merender PlantUML secara native; gunakan VS Code + ekstensi PlantUML untuk melihat blok PlantUML atau jadikan sebagai referensi desain. Mermaid dirender otomatis di GitHub dan VS Code.
+
+### Use Case Diagram (PlantUML)
+
+```plantuml
+@startuml
+left to right direction
+actor Admin
+actor Rektorat
+actor "Unit Kerja" as UnitKerja
+
+rectangle "E‑Surat Universitas Bakrie" {
+  (Monitoring Aplikasi) as UC_Monitor
+  (Kelola Pengguna) as UC_Users
+  (Kelola Departemen) as UC_Dept
+  (Kelola Jenis Surat) as UC_Types
+
+  (Dashboard) as UC_Dash
+  (Surat Masuk) as UC_Incoming
+  (Surat Tugas) as UC_Task
+  (Inbox Surat Tugas) as UC_TaskInbox
+  (History Disposisi) as UC_History
+  (Tindak Lanjut Surat Tugas) as UC_TaskFollow
+  (Arsip Surat Tugas) as UC_TaskArchive
+
+  (Buat Surat) as UC_CreateLetter
+  (Upload Lampiran) as UC_Attach
+  (Nomor Surat Otomatis) as UC_Numbering
+  (Tanda Tangan Surat) as UC_Sign
+  (Agenda Surat PDF) as UC_Agenda
+}
+
+Admin --> UC_Monitor
+Admin --> UC_Users
+Admin --> UC_Dept
+Admin --> UC_Types
+
+Rektorat --> UC_Dash
+Rektorat --> UC_Incoming
+Rektorat --> UC_Task
+Rektorat --> UC_TaskInbox
+Rektorat --> UC_History
+Rektorat --> UC_TaskFollow
+Rektorat --> UC_TaskArchive
+Rektorat --> UC_Sign
+
+UnitKerja --> UC_Dash
+UnitKerja --> UC_CreateLetter
+UnitKerja --> UC_Attach
+UnitKerja --> UC_Numbering
+UnitKerja --> UC_Sign
+UnitKerja --> UC_TaskArchive
+UnitKerja --> UC_Incoming
+UnitKerja --> UC_Agenda
+
+UC_CreateLetter .> UC_Attach : include
+UC_CreateLetter .> UC_Numbering : include
+UC_Numbering .> UC_Types : <<uses master>>
+UC_Sign .> UC_CreateLetter : <<after submit>>
+UC_Agenda .> UC_Incoming : <<data source>>
+@enduml
+```
+
+Jika Anda membutuhkan versi Mermaid, use case dapat didekati dengan flowchart nodes (namun tidak se‑standar PlantUML use case).
+
+### Class Diagram (Mermaid)
+
+```mermaid
+classDiagram
+  class User {
+    +int id
+    +string name
+    +string username
+    +string email
+    +string role
+    +string status
+    +int department_id
+  }
+  class Department {
+    +int id
+    +string name
+    +string code
+    +string type
+    +bool is_active
+  }
+  class LetterType {
+    +int id
+    +string name
+    +string code
+    +string number_format
+  }
+  class Letter {
+    +int id
+    +string letter_number
+    +date letter_date
+    +string direction
+    +string status
+    +int letter_type_id
+    +int created_by
+    +int from_department_id
+    +int to_department_id
+  }
+  class LetterDisposition {
+    +int id
+    +int letter_id
+    +int from_user_id
+    +int to_user_id
+    +int to_department_id
+    +string status
+  }
+  class LetterAttachment {
+    +int id
+    +int letter_id
+    +string file_name
+    +string file_path
+    +int uploaded_by
+  }
+  class LetterSignature {
+    +int id
+    +int letter_id
+    +int user_id
+    +string signature_type
+    +string status
+  }
+  class LetterNumberSequence {
+    +int id
+    +int letter_type_id
+    +int department_id
+    +int year
+    +int last_number
+  }
+  class LetterAgenda {
+    +int id
+    +string title
+    +date start_date
+    +date end_date
+    +string type
+    +int department_id
+    +int created_by
+    +string status
+  }
+
+  Department --> User : department_id
+  LetterType --> Letter : letter_type_id
+  User --> Letter : created_by
+  Department --> Letter : from_department_id
+  Department --> Letter : to_department_id
+  Letter --> LetterDisposition : 1..*
+  User --> LetterDisposition : from_user_id
+  User --> LetterDisposition : to_user_id
+  Department --> LetterDisposition : to_department_id
+  Letter --> LetterAttachment : 1..*
+  User --> LetterAttachment : uploaded_by
+  Letter --> LetterSignature : 1..*
+  User --> LetterSignature : user_id
+  LetterType --> LetterNumberSequence : 1..*
+  Department --> LetterNumberSequence : 0..*
+  Department --> LetterAgenda : 0..*
+  User --> LetterAgenda : created_by
+```
+
+### Sequence Diagram — Buat & Submit Surat (Unit Kerja)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Staff as Unit Kerja
+  participant UI as Web UI
+  participant UKC as UnitKerjaController
+  participant L as Letter
+  participant LA as LetterAttachment
+  participant LNS as LetterNumberSequence
+  participant LS as LetterSignature
+
+  Staff->>UI: Isi form Buat Surat + lampiran
+  UI->>UKC: POST /unit-kerja/api/letters/draft
+  UKC->>L: create(draft)
+  UI->>UKC: POST /unit-kerja/api/letters/{id}/attachments
+  UKC->>LA: create(attachment)
+  UI->>UKC: POST /unit-kerja/api/letters/submit
+  UKC->>LNS: findOrCreate(letter_type, department, year)
+  LNS-->>UKC: sequence instance
+  UKC->>LNS: generateUniqueLetterNumber()
+  LNS-->>UKC: nomor surat
+  UKC->>L: update(letter_number,status=pending)
+  UKC->>LS: create(pending signers)
+  UKC-->>UI: 200 OK + nomor surat
+```
+
+### Sequence Diagram — Disposisi Surat Masuk (Rektorat)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Rektor
+  participant RC as RektoratController
+  participant L as Letter
+  participant LD as LetterDisposition
+
+  Rektor->>RC: Lihat Surat Masuk
+  RC->>L: incomingIndex()
+  L-->>RC: daftar surat
+  Rektor->>RC: Buat Disposisi (instruksi, due_date, penerima)
+  RC->>LD: create(letter_id, from_user_id, to_user_id, to_department_id, ...)
+  LD-->>RC: status=pending
+  RC-->>Rektor: 200 OK
+```
+
+### State Diagram — Lifecycle Surat
+
+```mermaid
+stateDiagram-v2
+  [*] --> Draft
+  Draft --> Pending: submit
+  Pending --> Processed: process
+  Pending --> Rejected: reject
+  Processed --> Archived: archive
+  Pending --> Archived: archive
+  Draft --> [*]: cancel (opsional)
+```
