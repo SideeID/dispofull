@@ -58,8 +58,15 @@
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Lampiran</div>
 						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-							<li class="flex items-center justify-between"><span>file_1.pdf</span><button class="text-indigo-600 dark:text-indigo-400 hover:underline">Unduh</button></li>
-							<li class="flex items-center justify-between"><span>file_2.pdf</span><button class="text-indigo-600 dark:text-indigo-400 hover:underline">Unduh</button></li>
+							<template x-if="!selected?.attachments_list || !selected.attachments_list.length">
+								<li class="text-gray-400">Tidak ada lampiran</li>
+							</template>
+							<template x-for="a in (selected?.attachments_list || [])" :key="a.url + a.name">
+								<li class="flex items-center justify-between">
+									<span x-text="a.name"></span>
+									<a :href="a.url" target="_blank" class="text-indigo-600 dark:text-indigo-400 hover:underline">Unduh</a>
+								</li>
+							</template>
 						</ul>
 					</div>
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">

@@ -28,7 +28,7 @@
 					<div class="grid grid-cols-2 gap-4">
 						<div>
 							<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500">Periode</div>
-							<div class="text-gray-700 dark:text-gray-200" x-text="selected?.start + ' s/d ' + selected?.end"></div>
+							<div class="text-gray-700 dark:text-gray-200" x-text="(selected?.start && selected?.end) ? (selected?.start + ' s/d ' + selected?.end) : '-' "></div>
 						</div>
 						<div>
 							<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500">Durasi</div>
@@ -46,25 +46,29 @@
 					</div>
 					<div>
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500">Alasan Arsip</div>
-						<p class="text-gray-600 dark:text-gray-300 mt-1 leading-relaxed" x-text="selected?.reason"></p>
+						<p class="text-gray-600 dark:text-gray-300 mt-1 leading-relaxed" x-text="selected?.reason || '-' "></p>
 					</div>
 				</div>
 				<div class="space-y-5">
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Peserta</div>
-						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-							<li>Dr. Andi · Ketua Tim</li>
-							<li>Ir. Budi · Anggota</li>
-							<li>Dr. Citra · Anggota</li>
-							<li><button @click="closeAll(); open('showParticipants', selected)" class="text-slate-600 dark:text-slate-300 hover:underline">Lihat semua &raquo;</button></li>
-						</ul>
+						<template x-if="Array.isArray(selected?.participants_list) && selected.participants_list.length">
+							<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+								<template x-for="p in selected.participants_list.slice(0,3)" :key="p">
+									<li x-text="p"></li>
+								</template>
+								<li><button @click="closeAll(); open('showParticipants', selected)" class="text-slate-600 dark:text-slate-300 hover:underline">Lihat semua &raquo;</button></li>
+							</ul>
+						</template>
+						<template x-if="!selected?.participants_list || !selected.participants_list.length">
+							<div class="text-xs text-gray-400">Tidak ada peserta</div>
+						</template>
 					</div>
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Aktivitas Akhir</div>
 						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-							<li>2025-10-02 10:30 · Diarsipkan</li>
-							<li>2025-09-25 09:05 · Laporan diterima</li>
-							<li>2025-09-19 16:10 · Kegiatan selesai</li>
+							<li><span x-text="selected?.archived_at"></span> · Diarsipkan</li>
+							<template x-if="selected?.reason"><li x-text="selected.reason"></li></template>
 						</ul>
 					</div>
 					<div class="flex gap-2">

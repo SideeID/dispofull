@@ -11,26 +11,21 @@
 			</div>
 			<div class="space-y-4 text-sm">
 				<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300 max-h-60 overflow-y-auto pr-1">
-					<li class="flex items-center justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/40">
-						<div class="flex items-center gap-2">
-							<i data-feather="file" class="w-4 h-4 text-indigo-500"></i>
-							<span>proposal_kerjasama.pdf</span>
-						</div>
-						<div class="flex items-center gap-3">
-							<span class="text-[10px] text-gray-400">1.2MB</span>
-							<button class="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px]">Unduh</button>
-						</div>
-					</li>
-					<li class="flex items-center justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/40">
-						<div class="flex items-center gap-2">
-							<i data-feather="file" class="w-4 h-4 text-indigo-500"></i>
-							<span>profil_mitra.pdf</span>
-						</div>
-						<div class="flex items-center gap-3">
-							<span class="text-[10px] text-gray-400">860KB</span>
-							<button class="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px]">Unduh</button>
-						</div>
-					</li>
+					<template x-if="!selected?.attachments_list || !selected.attachments_list.length">
+						<li class="text-gray-400">Tidak ada lampiran</li>
+					</template>
+					<template x-for="a in (selected?.attachments_list || [])" :key="a.url + a.name">
+						<li class="flex items-center justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/40">
+							<div class="flex items-center gap-2">
+								<i data-feather="file" class="w-4 h-4 text-indigo-500"></i>
+								<span x-text="a.name"></span>
+							</div>
+							<div class="flex items-center gap-3">
+								<span class="text-[10px] text-gray-400" x-text="a.size_human || ''"></span>
+								<a :href="a.url" target="_blank" class="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px]">Unduh</a>
+							</div>
+						</li>
+					</template>
 				</ul>
 				<div class="pt-2 border-t border-dashed border-gray-200 dark:border-gray-700/60">
 					<form class="space-y-3" @submit.prevent="alert('Upload lampiran (dummy)')">

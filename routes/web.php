@@ -90,8 +90,10 @@ Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function
 Route::middleware(['auth:sanctum', 'verified', 'role:unit_kerja'])->group(function () {
     Route::get('/dashboard/unit-kerja', [DashboardController::class, 'index'])->name('dashboard.unit_kerja');
     Route::get('unit-kerja/arsip-surat-tugas', [UnitKerjaController::class, 'arsipSuratTugas'])->name('unit_kerja.arsip.surat.tugas');
+    Route::get('unit-kerja/arsip-surat-tugas/export', [UnitKerjaController::class, 'exportArchives'])->name('unit_kerja.archives.export');
     Route::get('unit-kerja/buat-surat', [UnitKerjaController::class, 'buatSurat'])->name('unit_kerja.buat.surat');
     Route::get('unit-kerja/surat-masuk', [UnitKerjaController::class, 'suratMasuk'])->name('unit_kerja.surat.masuk');
+    Route::get('unit-kerja/surat-masuk/export', [UnitKerjaController::class, 'exportIncoming'])->name('unit_kerja.surat_masuk.export');
 
     Route::prefix('unit-kerja/api')->name('unit_kerja.api.')->group(function(){
         // master data

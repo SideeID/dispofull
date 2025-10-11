@@ -19,9 +19,168 @@ use Illuminate\Support\Str;
 
 class UnitKerjaController extends Controller
 {
-    public function arsipSuratTugas()
+    public function arsipSuratTugas(Request $request)
     {
-        return view('pages.unit_kerja.arsip-surat-tugas.index');
+        $user = Auth::user();
+        $deptId = $user?->department_id;
+
+        // Cari jenis surat "Surat Tugas" (kode ST atau nama)
+        $letterTypeId = optional(
+            LetterType::where('code', 'ST')->orWhere('name', 'Surat Tugas')->first()
+        )->id;
+
+        $query = Letter::query()
+            ->withCount('attachments')
+            ->when($letterTypeId, fn($q) => $q->where('letter_type_id', $letterTypeId))
+            ->where('direction', 'outgoing')
+            ->where('status', 'archived')
+            ->when($deptId, fn($q) => $q->where('from_department_id', $deptId));
+
+        // Filters (q, date, priority, start_from/end_to as archived range)
+        if ($q = trim((string)$request->get('q', ''))) {
+            $query->where(function($w) use ($q){
+                $w->where('letter_number','like',"%$q%")
+                  ->orWhere('subject','like',"%$q%")
+                  ->orWhere('recipient_name','like',"%$q%");
+            });
+        }
+        if ($date = $request->get('date')) {
+            $query->whereDate('letter_date', $date);
+        }
+        if ($priority = $request->get('priority')) {
+            $query->where('priority', $priority);
+        }
+        if ($startFrom = $request->get('start_from')) {
+            $query->whereDate('archived_at', '>=', $startFrom);
+        }
+        if ($endTo = $request->get('end_to')) {
+            $query->whereDate('archived_at', '<=', $endTo);
+        }
+
+        $query->orderByDesc('archived_at')->orderByDesc('id');
+
+    // Paginate and map to FE-friendly shape
+    $paginator = $query->paginate(10);
+    $mapped = collect($paginator->items())->map(function(Letter $l){
+            $notes = json_decode($l->notes, true) ?: [];
+            $participants = $notes['participants'] ?? [];
+            if (!is_array($participants)) { $participants = []; }
+            $start = $notes['start_date'] ?? null;
+            $end = $notes['end_date'] ?? null;
+            $reason = $notes['archive_reason'] ?? null;
+
+            // Preload small attachments list for modal (name + url)
+            $atts = $l->attachments()->limit(10)->get(['original_name','file_path']);
+            $attachments = $atts->map(function($a){
+                return [
+                    'name' => $a->original_name,
+                    'url' => Storage::url($a->file_path)
+                ];
+            })->all();
+
+            return [
+                'id' => $l->id,
+                'number' => $l->letter_number,
+                'subject' => $l->subject,
+                'destination' => $l->recipient_name,
+                'date' => optional($l->letter_date)->format('Y-m-d'),
+                'start' => $start,
+                'end' => $end,
+                'priority' => $l->priority,
+                'participants' => count($participants),
+                'participants_list' => $participants,
+                'files' => (int) $l->attachments_count,
+                'archived_at' => optional($l->archived_at)->format('Y-m-d H:i'),
+                'reason' => $reason,
+                'attachments' => $attachments,
+            ];
+    });
+    $archives = $mapped->all();
+
+        $priorityColors = [
+            'low' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+            'normal' => 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
+            'high' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+            'urgent' => 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+        ];
+
+        return view('pages.unit_kerja.arsip-surat-tugas.index', [
+            'archives' => $archives,
+            'paginator' => $paginator,
+            'priorityColors' => $priorityColors,
+        ]);
+    }
+
+    /**
+     * Export arsip surat tugas berdasarkan filter saat ini (CSV sederhana).
+     */
+    public function exportArchives(Request $request)
+    {
+        $user = Auth::user();
+        $deptId = $user?->department_id;
+        $letterTypeId = optional(LetterType::where('code','ST')->orWhere('name','Surat Tugas')->first())->id;
+
+        $query = Letter::query()
+            ->withCount('attachments')
+            ->when($letterTypeId, fn($q) => $q->where('letter_type_id', $letterTypeId))
+            ->where('direction','outgoing')
+            ->where('status','archived')
+            ->when($deptId, fn($q) => $q->where('from_department_id', $deptId));
+
+        if ($q = trim((string)$request->get('q',''))) {
+            $query->where(function($w) use ($q){
+                $w->where('letter_number','like',"%$q%")
+                  ->orWhere('subject','like',"%$q%")
+                  ->orWhere('recipient_name','like',"%$q%");
+            });
+        }
+        if ($date = $request->get('date')) {
+            $query->whereDate('letter_date', $date);
+        }
+        if ($priority = $request->get('priority')) {
+            $query->where('priority', $priority);
+        }
+        if ($startFrom = $request->get('start_from')) {
+            $query->whereDate('archived_at', '>=', $startFrom);
+        }
+        if ($endTo = $request->get('end_to')) {
+            $query->whereDate('archived_at', '<=', $endTo);
+        }
+
+        $rows = $query->orderByDesc('archived_at')->orderByDesc('id')->limit(5000)->get();
+
+        $filename = 'arsip-surat-tugas-'.now()->format('Ymd_His').'.csv';
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ];
+
+        return response()->streamDownload(function() use ($rows) {
+            $out = fopen('php://output', 'w');
+            // UTF-8 BOM for Excel compatibility
+            fwrite($out, chr(0xEF).chr(0xBB).chr(0xBF));
+            fputcsv($out, ['Nomor','Perihal','Tujuan','Tanggal Surat','Periode','Prioritas','Lampiran','Tanggal Arsip','Alasan Arsip']);
+            foreach ($rows as $l) {
+                $notes = json_decode($l->notes, true) ?: [];
+                $start = $notes['start_date'] ?? '';
+                $end = $notes['end_date'] ?? '';
+                $reason = $notes['archive_reason'] ?? '';
+                $periode = ($start && $end) ? ($start.' s/d '.$end) : '';
+
+                fputcsv($out, [
+                    $l->letter_number,
+                    $l->subject,
+                    $l->recipient_name,
+                    optional($l->letter_date)->format('Y-m-d'),
+                    $periode,
+                    $l->priority,
+                    (int) $l->attachments_count,
+                    optional($l->archived_at)->format('Y-m-d H:i'),
+                    $reason,
+                ]);
+            }
+            fclose($out);
+        }, $filename, $headers);
     }
 
     public function buatSurat()
@@ -33,9 +192,184 @@ class UnitKerjaController extends Controller
         return view('pages.unit_kerja.buat-surat.index', compact('letterTypes','userDeptId'));
     }
 
-    public function suratMasuk()
+    public function suratMasuk(Request $request)
     {
-        return view('pages.unit_kerja.surat-masuk.index');
+        $user = Auth::user();
+        $deptId = $user?->department_id;
+
+        $query = Letter::query()
+            ->with(['fromDepartment:id,name'])
+            ->withCount(['attachments','dispositions'])
+            ->where('direction','incoming')
+            ->when($deptId, fn($q) => $q->where('to_department_id', $deptId));
+
+        // Filters from FE: q, date_from, date_to, status, priority, category
+        if ($q = trim((string)$request->get('q',''))) {
+            $query->where(function($w) use ($q){
+                $w->where('letter_number','like',"%$q%")
+                  ->orWhere('subject','like',"%$q%")
+                  ->orWhere('sender_name','like',"%$q%")
+                  ->orWhereHas('fromDepartment', function($d) use ($q){
+                      $d->where('name','like',"%$q%");
+                  });
+            });
+        }
+        if ($from = $request->get('date_from')) {
+            $query->whereDate('letter_date', '>=', $from);
+        }
+        if ($to = $request->get('date_to')) {
+            $query->whereDate('letter_date', '<=', $to);
+        }
+        if ($priority = $request->get('priority')) {
+            $query->where('priority', $priority);
+        }
+        if ($status = $request->get('status')) {
+            // Map FE statuses to conditions on received/processed or dispositions
+            if ($status === 'processed') {
+                $query->whereNotNull('processed_at');
+            } elseif ($status === 'in_progress') {
+                $query->whereNull('processed_at')->whereNotNull('received_at');
+            } elseif ($status === 'pending') {
+                $query->whereNull('received_at')->whereNull('processed_at');
+            } elseif ($status === 'review') {
+                $query->whereHas('dispositions', function($d){
+                    $d->whereIn('status',[ 'pending','in_progress' ]);
+                });
+            }
+        }
+        if ($category = $request->get('category')) {
+            if ($category === 'Internal') {
+                $query->whereNotNull('from_department_id');
+            } elseif ($category === 'Eksternal') {
+                $query->whereNull('from_department_id');
+            }
+        }
+
+        $query->orderByDesc('letter_date')->orderByDesc('id');
+
+        // We'll return up to 50 latest to fit current FE without paginator
+        $rows = $query->limit(50)->get();
+
+        $incoming = $rows->map(function(Letter $l){
+            // Derive status for FE
+            $hasReview = $l->dispositions()->whereIn('status',[ 'pending','in_progress' ])->exists();
+            if ($hasReview) {
+                $status = 'review';
+            } elseif ($l->processed_at) {
+                $status = 'processed';
+            } elseif ($l->received_at) {
+                $status = 'in_progress';
+            } else {
+                $status = 'pending';
+            }
+
+            // Attachments for modals (name + url + size_human)
+            $atts = $l->attachments()->limit(10)->get(['original_name','file_path','file_size']);
+            $attachments = $atts->map(function($a){
+                return [
+                    'name' => $a->original_name,
+                    'url' => Storage::url($a->file_path),
+                    'size_human' => $this->humanFileSize((int) $a->file_size),
+                ];
+            })->all();
+
+            return [
+                'id' => $l->id,
+                'number' => $l->letter_number,
+                'subject' => $l->subject,
+                'from' => $l->sender_name ?: ($l->fromDepartment->name ?? '—'),
+                'date' => optional($l->letter_date)->format('Y-m-d'),
+                'category' => $l->from_department_id ? 'Internal' : 'Eksternal',
+                'priority' => $l->priority,
+                'status' => $status,
+                'attachments' => (int) $l->attachments_count,
+                'dispositions' => (int) $l->dispositions_count,
+                'attachments_list' => $attachments,
+            ];
+        })->all();
+
+        $priorityColors = [
+            'low' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+            'normal' => 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
+            'high' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+            'urgent' => 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+        ];
+        $statusColors = [
+            'pending' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+            'in_progress' => 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+            'processed' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+            'review' => 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+        ];
+
+        return view('pages.unit_kerja.surat-masuk.index', [
+            'incoming' => $incoming,
+            'priorityColors' => $priorityColors,
+            'statusColors' => $statusColors,
+        ]);
+    }
+
+    /**
+     * Export daftar surat masuk (CSV) berdasarkan filter.
+     */
+    public function exportIncoming(Request $request)
+    {
+        $user = Auth::user();
+        $deptId = $user?->department_id;
+
+        $query = Letter::query()
+            ->withCount(['attachments','dispositions'])
+            ->where('direction','incoming')
+            ->when($deptId, fn($q) => $q->where('to_department_id',$deptId));
+
+        if ($q = trim((string)$request->get('q',''))) {
+            $query->where(function($w) use ($q){
+                $w->where('letter_number','like',"%$q%")
+                  ->orWhere('subject','like',"%$q%")
+                  ->orWhere('sender_name','like',"%$q%");
+            });
+        }
+        if ($from = $request->get('date_from')) { $query->whereDate('letter_date','>=',$from); }
+        if ($to = $request->get('date_to')) { $query->whereDate('letter_date','<=',$to); }
+        if ($priority = $request->get('priority')) { $query->where('priority',$priority); }
+        if ($category = $request->get('category')) {
+            if ($category === 'Internal') $query->whereNotNull('from_department_id');
+            if ($category === 'Eksternal') $query->whereNull('from_department_id');
+        }
+
+        $rows = $query->orderByDesc('letter_date')->orderByDesc('id')->limit(5000)->get();
+
+        $filename = 'surat-masuk-'.now()->format('Ymd_His').'.csv';
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ];
+
+        return response()->streamDownload(function() use ($rows) {
+            $out = fopen('php://output','w');
+            fwrite($out, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM
+            fputcsv($out, ['Nomor','Perihal','Pengirim','Tanggal Surat','Kategori','Prioritas','Status','Jumlah Disposisi','Lampiran']);
+            foreach ($rows as $l) {
+                // derive status similar to view
+                $hasReview = $l->dispositions()->whereIn('status',[ 'pending','in_progress' ])->exists();
+                if ($hasReview) $status = 'review';
+                elseif ($l->processed_at) $status = 'processed';
+                elseif ($l->received_at) $status = 'in_progress';
+                else $status = 'pending';
+
+                fputcsv($out, [
+                    $l->letter_number,
+                    $l->subject,
+                    $l->sender_name,
+                    optional($l->letter_date)->format('Y-m-d'),
+                    $l->from_department_id ? 'Internal' : 'Eksternal',
+                    $l->priority,
+                    $status,
+                    (int) $l->dispositions_count,
+                    (int) $l->attachments_count,
+                ]);
+            }
+            fclose($out);
+        }, $filename, $headers);
     }
 
     /* =============================================================
