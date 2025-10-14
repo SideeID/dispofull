@@ -32,7 +32,14 @@
 						</div>
 						<div>
 							<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500">Durasi</div>
-							<div class="text-gray-700 dark:text-gray-200" x-text="(() => { if(!selected) return '-'; const sd = new Date(selected.start); const ed = new Date(selected.end); return Math.floor((ed - sd)/(1000*60*60*24))+1 + ' hari'; })()"></div>
+							<div class="text-gray-700 dark:text-gray-200" x-text="(() => {
+								if(!selected || !selected.start || !selected.end) return '-';
+								const sd = new Date(selected.start);
+								const ed = new Date(selected.end);
+								if(isNaN(sd.getTime()) || isNaN(ed.getTime())) return '-';
+								const days = Math.floor((ed - sd)/(1000*60*60*24)) + 1;
+								return (days > 0 ? days : 0) + ' hari';
+							})()"></div>
 						</div>
 					</div>
 					<div>
@@ -54,8 +61,8 @@
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Peserta</div>
 						<template x-if="Array.isArray(selected?.participants_list) && selected.participants_list.length">
 							<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-								<template x-for="p in selected.participants_list.slice(0,3)" :key="p">
-									<li x-text="p"></li>
+								<template x-for="(p,i) in selected.participants_list.slice(0,3)" :key="i">
+									<li x-text="(typeof p === 'string') ? p : (p?.nama ?? p?.name ?? '-')"></li>
 								</template>
 								<li><button @click="closeAll(); open('showParticipants', selected)" class="text-slate-600 dark:text-slate-300 hover:underline">Lihat semua &raquo;</button></li>
 							</ul>

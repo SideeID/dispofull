@@ -19,24 +19,96 @@ use Illuminate\Support\Str;
 
 class UnitKerjaController extends Controller
 {
+    public function archiveLetter(Request $request, Letter $letter)
+    {
+        $user = Auth::user();
+        if ($letter->direction !== 'outgoing') {
+            return response()->json(['success'=>false,'message'=>'Hanya surat keluar yang dapat diarsipkan.'], 422);
+        }
+        if ($letter->from_department_id !== ($user?->department_id)) {
+            return response()->json(['success'=>false,'message'=>'Tidak memiliki izin mengarsipkan surat ini.'], 403);
+        }
+        if ($letter->status === 'draft') {
+            return response()->json(['success'=>false,'message'=>'Draft tidak dapat diarsipkan. Ajukan/selesaikan terlebih dahulu.'], 409);
+        }
+
+        $data = Validator::make($request->all(), [
+            'start_date' => ['nullable','date'],
+            'end_date' => ['nullable','date','after_or_equal:start_date'],
+            'archive_reason' => ['nullable','string','max:500'],
+        ])->validate();
+
+        $notes = json_decode($letter->notes, true) ?: [];
+        foreach (['start_date','end_date','archive_reason'] as $k) {
+            if (array_key_exists($k, $data)) {
+                $notes[$k] = $data[$k];
+            }
+        }
+
+        $letter->update([
+            'status' => 'archived',
+            'archived_at' => now(),
+            'notes' => json_encode($notes, JSON_UNESCAPED_UNICODE)
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Surat telah diarsipkan.',
+            'data' => [
+                'id' => $letter->id,
+                'status' => $letter->status,
+                'archived_at' => optional($letter->archived_at)->format('Y-m-d H:i'),
+            ]
+        ]);
+    }
+
+    public function outgoingSearch(Request $request)
+    {
+        $user = Auth::user();
+        $deptId = $user?->department_id;
+        $q = trim((string) $request->get('q',''));
+
+        $query = Letter::query()
+            ->where('direction','outgoing')
+            ->where('status','!=','archived')
+            ->where('status','!=','draft')
+            ->when($deptId, fn($qq)=>$qq->where('from_department_id',$deptId))
+            ->when($deptId, fn($qq)=>$qq->where('from_department_id',$deptId));
+
+        if ($q !== '') {
+            $query->where(function($w) use ($q){
+                $w->where('letter_number','like',"%$q%")
+                  ->orWhere('subject','like',"%$q%");
+            });
+        }
+
+        $rows = $query->orderByDesc('letter_date')->orderByDesc('id')->limit(20)->get([
+            'id','letter_number','subject','letter_date','status'
+        ]);
+
+        $data = $rows->map(function(Letter $l){
+            return [
+                'id' => $l->id,
+                'number' => $l->letter_number,
+                'subject' => $l->subject,
+                'date' => optional($l->letter_date)->format('Y-m-d'),
+                'status' => $l->status,
+            ];
+        });
+
+        return response()->json(['success'=>true,'data'=>$data]);
+    }
     public function arsipSuratTugas(Request $request)
     {
         $user = Auth::user();
         $deptId = $user?->department_id;
 
-        // Cari jenis surat "Surat Tugas" (kode ST atau nama)
-        $letterTypeId = optional(
-            LetterType::where('code', 'ST')->orWhere('name', 'Surat Tugas')->first()
-        )->id;
-
         $query = Letter::query()
             ->withCount('attachments')
-            ->when($letterTypeId, fn($q) => $q->where('letter_type_id', $letterTypeId))
             ->where('direction', 'outgoing')
             ->where('status', 'archived')
             ->when($deptId, fn($q) => $q->where('from_department_id', $deptId));
 
-        // Filters (q, date, priority, start_from/end_to as archived range)
         if ($q = trim((string)$request->get('q', ''))) {
             $query->where(function($w) use ($q){
                 $w->where('letter_number','like',"%$q%")
@@ -59,7 +131,6 @@ class UnitKerjaController extends Controller
 
         $query->orderByDesc('archived_at')->orderByDesc('id');
 
-    // Paginate and map to FE-friendly shape
     $paginator = $query->paginate(10);
     $mapped = collect($paginator->items())->map(function(Letter $l){
             $notes = json_decode($l->notes, true) ?: [];
@@ -69,7 +140,6 @@ class UnitKerjaController extends Controller
             $end = $notes['end_date'] ?? null;
             $reason = $notes['archive_reason'] ?? null;
 
-            // Preload small attachments list for modal (name + url)
             $atts = $l->attachments()->limit(10)->get(['original_name','file_path']);
             $attachments = $atts->map(function($a){
                 return [
@@ -111,18 +181,12 @@ class UnitKerjaController extends Controller
         ]);
     }
 
-    /**
-     * Export arsip surat tugas berdasarkan filter saat ini (CSV sederhana).
-     */
     public function exportArchives(Request $request)
     {
         $user = Auth::user();
         $deptId = $user?->department_id;
-        $letterTypeId = optional(LetterType::where('code','ST')->orWhere('name','Surat Tugas')->first())->id;
-
         $query = Letter::query()
             ->withCount('attachments')
-            ->when($letterTypeId, fn($q) => $q->where('letter_type_id', $letterTypeId))
             ->where('direction','outgoing')
             ->where('status','archived')
             ->when($deptId, fn($q) => $q->where('from_department_id', $deptId));
@@ -157,7 +221,6 @@ class UnitKerjaController extends Controller
 
         return response()->streamDownload(function() use ($rows) {
             $out = fopen('php://output', 'w');
-            // UTF-8 BOM for Excel compatibility
             fwrite($out, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($out, ['Nomor','Perihal','Tujuan','Tanggal Surat','Periode','Prioritas','Lampiran','Tanggal Arsip','Alasan Arsip']);
             foreach ($rows as $l) {
@@ -203,7 +266,6 @@ class UnitKerjaController extends Controller
             ->where('direction','incoming')
             ->when($deptId, fn($q) => $q->where('to_department_id', $deptId));
 
-        // Filters from FE: q, date_from, date_to, status, priority, category
         if ($q = trim((string)$request->get('q',''))) {
             $query->where(function($w) use ($q){
                 $w->where('letter_number','like',"%$q%")
@@ -224,7 +286,6 @@ class UnitKerjaController extends Controller
             $query->where('priority', $priority);
         }
         if ($status = $request->get('status')) {
-            // Map FE statuses to conditions on received/processed or dispositions
             if ($status === 'processed') {
                 $query->whereNotNull('processed_at');
             } elseif ($status === 'in_progress') {
@@ -247,11 +308,9 @@ class UnitKerjaController extends Controller
 
         $query->orderByDesc('letter_date')->orderByDesc('id');
 
-        // We'll return up to 50 latest to fit current FE without paginator
         $rows = $query->limit(50)->get();
 
         $incoming = $rows->map(function(Letter $l){
-            // Derive status for FE
             $hasReview = $l->dispositions()->whereIn('status',[ 'pending','in_progress' ])->exists();
             if ($hasReview) {
                 $status = 'review';
@@ -263,7 +322,6 @@ class UnitKerjaController extends Controller
                 $status = 'pending';
             }
 
-            // Attachments for modals (name + url + size_human)
             $atts = $l->attachments()->limit(10)->get(['original_name','file_path','file_size']);
             $attachments = $atts->map(function($a){
                 return [
@@ -308,9 +366,6 @@ class UnitKerjaController extends Controller
         ]);
     }
 
-    /**
-     * Export daftar surat masuk (CSV) berdasarkan filter.
-     */
     public function exportIncoming(Request $request)
     {
         $user = Auth::user();
@@ -346,10 +401,9 @@ class UnitKerjaController extends Controller
 
         return response()->streamDownload(function() use ($rows) {
             $out = fopen('php://output','w');
-            fwrite($out, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM
+            fwrite($out, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($out, ['Nomor','Perihal','Pengirim','Tanggal Surat','Kategori','Prioritas','Status','Jumlah Disposisi','Lampiran']);
             foreach ($rows as $l) {
-                // derive status similar to view
                 $hasReview = $l->dispositions()->whereIn('status',[ 'pending','in_progress' ])->exists();
                 if ($hasReview) $status = 'review';
                 elseif ($l->processed_at) $status = 'processed';
@@ -372,13 +426,6 @@ class UnitKerjaController extends Controller
         }, $filename, $headers);
     }
 
-    /* =============================================================
-     *  API: MASTER DATA
-     * ============================================================= */
-
-    /**
-     * Get active letter types (for dropdown Jenis Surat)
-     */
     public function letterTypes(Request $request)
     {
         $types = LetterType::query()

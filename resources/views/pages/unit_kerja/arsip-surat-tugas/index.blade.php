@@ -8,23 +8,25 @@
 		 }"
 		 @keydown.escape.window="closeAll()"
 	>
-		@php /* data dinamis disediakan dari controller */ @endphp
-
 		<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
 			<div>
 				<h1 class="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
 					<span class="inline-flex items-center justify-center h-11 w-11 rounded-lg bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 text-white shadow ring-1 ring-slate-400/30">
 						<i data-feather="archive" class="w-5 h-5"></i>
 					</span>
-					Arsip Surat Tugas (Unit Kerja)
+					Arsip Surat Tugas
 				</h1>
 			</div>
 			<div class="flex items-center gap-3">
-				<button @click="$dispatch('refresh-archive-letters')" class="btn bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
-					<i data-feather="refresh-cw" class="w-4 h-4"></i>
-					<span class="hidden sm:inline">Refresh</span>
+				<button @click="open('showExport')" class="btn bg-yellow-600 hover:bg-yellow-500 text-white flex items-center gap-2">
+					<i data-feather="download" class="w-4 h-4"></i>
+					<span class="hidden sm:inline">Export</span>
 				</button>
-				<form method="GET" action="{{ route('unit_kerja.archives.export') }}">
+				<button @click="$dispatch('open-archive-modal')" class="btn bg-orange-600 hover:bg-orange-500 text-white flex items-center gap-2">
+					<i data-feather="archive" class="w-4 h-4"></i>
+					<span class="hidden sm:inline">Arsipkan</span>
+				</button>
+				{{-- <form method="GET" action="{{ route('unit_kerja.archives.export') }}">
 					<input type="hidden" name="q" value="{{ request('q') }}" />
 					<input type="hidden" name="date" value="{{ request('date') }}" />
 					<input type="hidden" name="priority" value="{{ request('priority') }}" />
@@ -34,7 +36,7 @@
 						<i data-feather="download" class="w-4 h-4"></i>
 						<span class="hidden sm:inline">Export</span>
 					</button>
-				</form>
+				</form> --}}
 			</div>
 		</div>
 
@@ -73,7 +75,7 @@
 				</div>
 				<div class="flex gap-2 md:col-span-1">
 					<button class="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg px-4 py-2 transition">Filter</button>
-					<a href="#" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg px-4 py-2 text-xs text-center">Reset</a>
+					<a href="{{ route('unit_kerja.arsip.surat.tugas') }}" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg px-4 py-2 text-xs text-center">Reset</a>
 				</div>
 			</form>
 		</div>
@@ -98,7 +100,6 @@
 							<th class="px-5 py-3 text-left font-semibold">Periode</th>
 							<th class="px-5 py-3 text-left font-semibold">Prioritas</th>
 							<th class="px-5 py-3 text-left font-semibold">Lampiran</th>
-							<th class="px-5 py-3 text-left font-semibold">Arsip</th>
 							<th class="px-5 py-3 text-right font-semibold">Aksi</th>
 						</tr>
 					</thead>
@@ -132,10 +133,6 @@
 								<span class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $priorityColors[$a['priority']] ?? 'bg-slate-500/10 text-slate-600 dark:text-slate-300' }}">{{ $a['priority'] }}</span>
 							</td>
 							<td class="px-5 py-3 text-gray-600 dark:text-gray-300 align-top">{{ $a['files'] }}</td>
-							<td class="px-5 py-3 text-gray-600 dark:text-gray-300 align-top">
-								<div class="text-[11px] text-gray-500 dark:text-gray-400">{{ $a['archived_at'] }}</div>
-								<div class="text-[10px] text-gray-400 dark:text-gray-500">{{ $a['reason'] }}</div>
-							</td>
 							<td class="px-5 py-3 text-right align-top">
 								<div class="flex items-center justify-end gap-1">
 									<button @click="open('showView', row)" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-slate-600 dark:text-slate-300" title="Detail"><i data-feather='eye' class='w-4 h-4'></i></button>
@@ -159,6 +156,8 @@
 		@include('pages.unit_kerja.arsip-surat-tugas.detail.attachment-modal')
 		@include('pages.unit_kerja.arsip-surat-tugas.detail.history-modal')
 		@include('pages.unit_kerja.arsip-surat-tugas.detail.export-modal')
+
+		@include('pages.unit_kerja.arsip-surat-tugas.detail.archive-modal')
 
 		<div class="mt-10 text-center text-[11px] text-gray-400 dark:text-gray-600">Sistem Pengelolaan Surat · Universitas Bakrie</div>
 	</div>
