@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DataFeedController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RektoratController;
+use App\Http\Controllers\RektorSuratTugasController;
 use App\Http\Controllers\UnitKerjaController;
 
 /*
@@ -65,7 +66,7 @@ Route::middleware(['auth:sanctum', 'verified', 'role:admin'])->group(function ()
 Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function () {
     Route::get('/dashboard/rektor', [DashboardController::class, 'index'])->name('dashboard.rektorat');
     Route::get('rektor/surat-masuk', [RektoratController::class, 'suratMasuk'])->name('surat.masuk');
-    Route::get('rektor/surat-tugas', [RektoratController::class, 'suratTugas'])->name('surat.tugas');
+    Route::get('rektor/surat-tugas', [RektorSuratTugasController::class, 'index'])->name('surat.tugas');
     Route::get('rektor/inbox-surat-tugas', [RektoratController::class, 'inboxSuratTugas'])->name('inbox.surat.tugas');
     Route::get('rektor/history-disposisi', [RektoratController::class, 'historyDisposisi'])->name('history.disposisi');
     Route::get('rektor/tindak-lanjut-surat-tugas', [RektoratController::class, 'tindakLanjutSuratTugas'])->name('tindaklanjut.surat.tugas');
@@ -74,6 +75,16 @@ Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function
     Route::prefix('rektor/api')
         ->name('rektor.api.')
         ->group(function () {
+            // Surat Tugas (ST)
+            Route::get('/assignments', [RektorSuratTugasController::class, 'apiIndex'])->name('assignments.index');
+            Route::post('/assignments', [RektorSuratTugasController::class, 'store'])->name('assignments.store');
+            Route::get('/assignments/{letter}', [RektorSuratTugasController::class, 'show'])->name('assignments.show');
+            Route::get('/assignments/{letter}/participants', [RektorSuratTugasController::class, 'participantsIndex'])->name('assignments.participants.index');
+            Route::post('/assignments/{letter}/participants', [RektorSuratTugasController::class, 'participantsStore'])->name('assignments.participants.store');
+            Route::delete('/assignments/{letter}/participants/{index}', [RektorSuratTugasController::class, 'participantsDestroy'])->name('assignments.participants.destroy');
+            Route::get('/assignments/{letter}/history', [RektorSuratTugasController::class, 'history'])->name('assignments.history');
+            Route::post('/assignments/{letter}/confirm', [RektorSuratTugasController::class, 'confirm'])->name('assignments.confirm');
+            Route::patch('/assignments/{letter}/status', [RektorSuratTugasController::class, 'updateStatus'])->name('assignments.status.update');
             Route::get('/incoming-letters', [RektoratController::class, 'incomingIndex'])->name('incoming.index');
             Route::get('/incoming-letters/{letter}', [RektoratController::class, 'incomingShow'])->name('incoming.show');
             Route::post('/incoming-letters/{letter}/mark-received', [RektoratController::class, 'incomingMarkReceived'])->name('incoming.mark_received');

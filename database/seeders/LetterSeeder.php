@@ -25,6 +25,7 @@ class LetterSeeder extends Seeder
         $wr1 = Department::where('code','WR1')->first();
         $p3m = Department::where('code','P3M')->first();
         $baa = Department::where('code','BAA')->first();
+        $st = Department::where('code','ST')->first();
 
         $rektorUser = User::where('username','rektor')->first();
         $adminUser = User::where('username','admin')->first();
@@ -40,6 +41,16 @@ class LetterSeeder extends Seeder
                 'from_department_id' => $wr1?->id,
                 'to_department_id' => $rektorat->id,
                 'received_at' => now()->subDays(1)->setTime(8,30),
+            ],
+            [
+                'subject' => 'Surat Tugas Dosen Pembimbing',
+                'sender_name' => 'Rektorat',
+                'priority' => 'urgent',
+                'status' => 'closed',
+                'from_department_id' => $rektorat->id,
+                'to_department_id' => $st?->id,
+                'received_at' => now()->subDays(5)->setTime(14,0),
+                'processed_at' => now()->subDays(4),
             ],
             [
                 'subject' => 'Undangan Seminar Nasional',

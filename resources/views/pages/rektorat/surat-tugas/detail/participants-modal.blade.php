@@ -13,33 +13,40 @@
 				<div class="space-y-4">
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4 h-full">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-3">Daftar Peserta</div>
-						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300 max-h-56 overflow-y-auto pr-1">
-							<li class="flex items-center justify-between gap-2"><span>Dr. Andi · Ketua</span><button class="text-rose-500 hover:underline">Hapus</button></li>
-							<li class="flex items-center justify-between gap-2"><span>Ir. Budi · Anggota</span><button class="text-rose-500 hover:underline">Hapus</button></li>
-							<li class="flex items-center justify-between gap-2"><span>Dr. Citra · Anggota</span><button class="text-rose-500 hover:underline">Hapus</button></li>
-							<li class="flex items-center justify-between gap-2"><span>Sari, M.Sc · Anggota</span><button class="text-rose-500 hover:underline">Hapus</button></li>
-						</ul>
+						<template x-if="participants.length">
+							<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300 max-h-56 overflow-y-auto pr-1">
+								<template x-for="(p, idx) in participants" :key="idx">
+									<li class="flex items-center justify-between gap-2">
+										<span x-text="`${p.nama}${p.jabatan ? ' · ' + p.jabatan : ''}`"></span>
+										<button class="text-rose-500 hover:underline" @click.prevent="removeParticipant(idx)">Hapus</button>
+									</li>
+								</template>
+							</ul>
+						</template>
+						<template x-if="!participants.length">
+							<div class="text-xs text-gray-400">Belum ada peserta.</div>
+						</template>
 					</div>
 				</div>
 				<div class="space-y-5">
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Tambah Peserta</div>
-						<form class="space-y-4" @submit.prevent="alert('Tambah peserta (dummy)')">
+						<form class="space-y-4" @submit.prevent="addParticipant()">
 							<div>
 								<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Nama</label>
-								<input type="text" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" placeholder="Nama Peserta" />
+								<input type="text" x-model="newParticipant.nama" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" placeholder="Nama Peserta" />
 							</div>
 							<div class="grid grid-cols-2 gap-4">
 								<div>
 									<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Peran</label>
-									<select class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500">
+									<select x-model="newParticipant.jabatan" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500">
 										<option value="anggota">Anggota</option>
 										<option value="ketua">Ketua</option>
 									</select>
 								</div>
 								<div>
 									<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Unit</label>
-									<input type="text" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" placeholder="Unit" />
+									<input type="text" x-model="newParticipant.status" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" placeholder="Unit / Status" />
 								</div>
 							</div>
 							<div class="flex items-center justify-end">

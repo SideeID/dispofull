@@ -37,7 +37,8 @@ class Letter extends Model
         'letter_date' => 'date',
         'received_at' => 'datetime',
         'processed_at' => 'datetime',
-        'archived_at' => 'datetime'
+        'archived_at' => 'datetime',
+        'notes' => 'array'
     ];
 
     /**

@@ -10,12 +10,8 @@
 				<button @click="closeAll()" class="text-gray-400 hover:text-rose-600"><i data-feather="x" class="w-5 h-5"></i></button>
 			</div>
 			<div class="max-h-[55vh] overflow-y-auto pr-1 text-sm">
-				<ul class="space-y-4" x-data="{ logs: [] }" x-init="logs = [
-					{time:'2025-10-02 09:40',actor:'Rektor',action:'Menandatangani draft surat',status:'success'},
-					{time:'2025-10-02 09:30',actor:'Sekretariat',action:'Menambahkan peserta',status:'info'},
-					{time:'2025-10-02 09:12',actor:'Sekretariat',action:'Membuat draft surat',status:'success'},
-				]">
-					<template x-for="l in logs" :key="l.time + l.action">
+				<ul class="space-y-4">
+					<template x-for="l in logs" :key="(l.time||'') + (l.action||'')">
 						<li class="flex items-start gap-3">
 							<div class="w-10 text-[11px] font-mono text-gray-400 dark:text-gray-500 mt-0.5" x-text="l.time.split(' ')[1]"></div>
 							<div class="flex-1">
