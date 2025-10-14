@@ -74,6 +74,237 @@ class RektoratController extends Controller
         return view('pages.rektorat.arsip-surat-tugas.index');
     }
 
+    /**
+     * History Disposisi — index list for role rektorat
+     * Filters: q (number/subject/origin), date_from, date_to, priority, status
+     * Returns paginated dispositions joined with letter info.
+     */
+    public function historyDispositionsIndex(Request $request)
+    {
+        $perPage = (int)($request->integer('per_page') ?: 15);
+        $user = $request->user();
+        $deptId = $user?->department_id;
+
+        $query = LetterDisposition::query()
+            ->with([
+                'letter:id,letter_number,subject,letter_date,priority,status,from_department_id,to_department_id,sender_name',
+                'letter.fromDepartment:id,name,code',
+                'letter.toDepartment:id,name,code',
+                'fromUser:id,name,position',
+                'toUser:id,name,position',
+            ])
+            // Scope: only dispositions for letters visible to rektorat (to_department or global)
+            ->whereHas('letter', function($q) use ($deptId){
+                $q->where('direction','incoming')
+                  ->when($deptId, function($qq) use ($deptId){
+                      $qq->where(function($x) use ($deptId){
+                          $x->where('to_department_id',$deptId)
+                            ->orWhereNull('to_department_id');
+                      });
+                  });
+            });
+
+        if ($s = trim($request->get('q',''))) {
+            $query->where(function($q) use ($s){
+                $q->whereHas('letter', function($l) use ($s){
+                    $l->where('letter_number','like',"%$s%")
+                      ->orWhere('subject','like',"%$s%");
+                })
+                ->orWhereHas('fromUser', fn($u)=>$u->where('name','like',"%$s%"))
+                ->orWhereHas('toUser', fn($u)=>$u->where('name','like',"%$s%"));
+            });
+        }
+        if ($status = $request->get('status')) {
+            if (in_array($status, ['pending','in_progress','completed','returned'])) {
+                $query->where('status', $status);
+            } elseif ($status === 'archived') {
+                $query->whereHas('letter', fn($l) => $l->where('status','archived'));
+            } elseif ($status === 'forwarded') {
+                // Sederhana: treat forwarded as pending dispositions
+                $query->where('status','pending');
+            }
+        }
+        if ($priority = $request->get('priority')) {
+            $query->whereHas('letter', fn($l)=>$l->where('priority',$priority));
+        }
+        if ($to = trim($request->get('to',''))) {
+            $query->where(function($q) use ($to){
+                $q->whereHas('toUser', fn($u)=>$u->where('name','like',"%$to%"))
+                  ->orWhereHas('letter.toDepartment', fn($d)=>$d->where('name','like',"%$to%"));
+            });
+        }
+        if ($request->filled('date_from')) {
+            $query->whereHas('letter', fn($l)=>$l->whereDate('letter_date','>=',$request->date('date_from')));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereHas('letter', fn($l)=>$l->whereDate('letter_date','<=',$request->date('date_to')));
+        }
+
+        $query->latest();
+        $paginator = $query->paginate($perPage);
+
+        $data = collect($paginator->items())->map(function(LetterDisposition $d){
+            $letter = $d->letter;
+            return [
+                'id' => $d->id,
+                'number' => $letter?->letter_number,
+                'subject' => $letter?->subject,
+                'origin' => $letter?->sender_name ?: ($letter?->fromDepartment?->name),
+                'date' => optional($letter?->letter_date)->format('Y-m-d'),
+                'to' => $letter?->toDepartment?->name ?: ($d->toUser?->name),
+                'priority' => $letter?->priority,
+                'status' => $d->status,
+                'letter_status' => $letter?->status,
+                'chain' => $letter?->dispositions()->count() ?? 0,
+                'attachments' => $letter?->attachments()->count() ?? 0,
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ]
+        ]);
+    }
+
+    /** Detail satu record history disposisi (berdasarkan disposition id). */
+    public function historyDispositionsShow(LetterDisposition $disposition, Request $request)
+    {
+        if (!$this->dispositionVisibleToRektor($request, $disposition)) abort(404);
+        $disposition->load(['letter.fromDepartment:id,name,code','letter.toDepartment:id,name,code','fromUser:id,name,position','toUser:id,name,position']);
+        $letter = $disposition->letter;
+        return response()->json([
+            'data' => [
+                'id' => $disposition->id,
+                'number' => $letter?->letter_number,
+                'subject' => $letter?->subject,
+                'origin' => $letter?->sender_name ?: ($letter?->fromDepartment?->name),
+                'date' => optional($letter?->letter_date)->format('Y-m-d'),
+                'to' => $letter?->toDepartment?->name ?: ($disposition->toUser?->name),
+                'priority' => $letter?->priority,
+                'status' => $disposition->status,
+                'chain' => $letter?->dispositions()->count() ?? 0,
+                'attachments' => $letter?->attachments()->count() ?? 0,
+            ]
+        ]);
+    }
+
+    /** Daftar lampiran terkait surat dari disposition. */
+    public function historyDispositionsAttachments(LetterDisposition $disposition, Request $request)
+    {
+        if (!$this->dispositionVisibleToRektor($request, $disposition)) abort(404);
+        $letter = $disposition->letter()->withCount('attachments')->first();
+        $attachments = $letter->attachments()->select('id','original_name as name','file_size as size','file_type as type','created_at')->latest()->get();
+        return response()->json(['data'=>$attachments]);
+    }
+
+    /** Route/Timeline untuk disposition spesifik (gabungan activity sederhana). */
+    public function historyDispositionsRoute(LetterDisposition $disposition, Request $request)
+    {
+        if (!$this->dispositionVisibleToRektor($request, $disposition)) abort(404);
+        $steps = [];
+        $letter = $disposition->letter;
+        if ($letter?->received_at) {
+            $steps[] = [
+                'time' => $letter->received_at->format('Y-m-d H:i'),
+                'unit' => $letter->toDepartment?->name ?: 'Tujuan',
+                'action' => 'Menerima surat',
+                'status' => 'success',
+            ];
+        }
+        // step disposisi dibuat
+        $steps[] = [
+            'time' => $disposition->created_at->format('Y-m-d H:i'),
+            'unit' => $disposition->fromUser?->name ?: 'Pengirim',
+            'action' => 'Mendisposisikan ke '.($disposition->toUser?->name ?: ($disposition->toDepartment?->name ?: 'Penerima')),
+            'status' => 'success',
+        ];
+        if ($disposition->read_at) {
+            $steps[] = [
+                'time' => $disposition->read_at->format('Y-m-d H:i'),
+                'unit' => $disposition->toUser?->name ?: 'Penerima',
+                'action' => 'Membaca disposisi',
+                'status' => 'success',
+            ];
+        }
+        if ($disposition->completed_at) {
+            $steps[] = [
+                'time' => $disposition->completed_at->format('Y-m-d H:i'),
+                'unit' => $disposition->toUser?->name ?: 'Penerima',
+                'action' => 'Menandai selesai',
+                'status' => 'success',
+            ];
+        }
+        return response()->json(['data'=>$steps]);
+    }
+
+    /** Catatan untuk disposition (gunakan response dan instruction untuk saat ini). */
+    public function historyDispositionsNotes(LetterDisposition $disposition, Request $request)
+    {
+        if (!$this->dispositionVisibleToRektor($request, $disposition)) abort(404);
+        $notes = [];
+        $notes[] = [
+            'time' => $disposition->created_at->format('Y-m-d H:i'),
+            'unit' => $disposition->fromUser?->name ?: 'Pengirim',
+            'text' => $disposition->instruction,
+        ];
+        if ($disposition->response) {
+            $notes[] = [
+                'time' => optional($disposition->updated_at)->format('Y-m-d H:i') ?? $disposition->created_at->format('Y-m-d H:i'),
+                'unit' => $disposition->toUser?->name ?: 'Penerima',
+                'text' => $disposition->response,
+            ];
+        }
+        return response()->json(['data'=>$notes]);
+    }
+
+    /** Timeline/History gabungan untuk disposition & suratnya. */
+    public function historyDispositionsTimeline(LetterDisposition $disposition, Request $request)
+    {
+        if (!$this->dispositionVisibleToRektor($request, $disposition)) abort(404);
+        $letter = $disposition->letter()->with(['attachments.uploader:id,name'])->first();
+        $logs = [];
+        if ($letter?->received_at) {
+            $logs[] = [
+                'time' => $letter->received_at->format('Y-m-d H:i'),
+                'actor' => 'System',
+                'action' => 'Surat diterima',
+            ];
+        }
+        $logs[] = [
+            'time' => $disposition->created_at->format('Y-m-d H:i'),
+            'actor' => $disposition->fromUser?->name ?: 'User',
+            'action' => 'Membuat disposisi',
+        ];
+        if ($disposition->read_at) {
+            $logs[] = [
+                'time' => $disposition->read_at->format('Y-m-d H:i'),
+                'actor' => $disposition->toUser?->name ?: 'User',
+                'action' => 'Membaca disposisi',
+            ];
+        }
+        if ($disposition->completed_at) {
+            $logs[] = [
+                'time' => $disposition->completed_at->format('Y-m-d H:i'),
+                'actor' => $disposition->toUser?->name ?: 'User',
+                'action' => 'Menyelesaikan disposisi',
+            ];
+        }
+        foreach ($letter->attachments as $a) {
+            $logs[] = [
+                'time' => $a->created_at->format('Y-m-d H:i'),
+                'actor' => $a->uploader->name ?? 'User',
+                'action' => 'Menambahkan lampiran '.$a->original_name,
+            ];
+        }
+        usort($logs, fn($a,$b)=>strcmp($b['time'],$a['time']));
+        return response()->json(['data'=>$logs]);
+    }
+
     public function incomingIndex(Request $request)
     {
         $perPage = (int)($request->integer('per_page') ?: 15);
@@ -390,5 +621,13 @@ class RektoratController extends Controller
             return $letter->to_department_id === $deptId || is_null($letter->to_department_id);
         }
         return $letter->signatures()->where('user_id',$userId)->exists();
+    }
+
+    /** Visibility check for a disposition via its letter visibility. */
+    private function dispositionVisibleToRektor(Request $request, LetterDisposition $disposition): bool
+    {
+        $letter = $disposition->letter;
+        if (!$letter) return false;
+        return $this->visibleToRektor($request, $letter);
     }
 }
