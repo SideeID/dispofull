@@ -18,7 +18,7 @@ return new class extends Migration
             $table->text('content')->nullable(); // Isi surat
             $table->date('letter_date'); // Tanggal surat
             $table->enum('direction', ['incoming', 'outgoing']); // Surat masuk/keluar
-            $table->enum('status', ['draft', 'pending', 'processed', 'archived', 'rejected'])->default('draft');
+            $table->enum('status', ['draft', 'pending', 'processed', 'archived', 'rejected', 'closed'])->default('draft');
             $table->enum('priority', ['low', 'normal', 'high', 'urgent'])->default('normal');
 
             // Pengirim/Penerima

@@ -13,13 +13,7 @@
 				<div class="md:col-span-3 space-y-5">
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-3">Timeline</div>
-						<ol class="space-y-4 text-xs text-gray-600 dark:text-gray-300" x-data="{ steps: [
-							{time:'2025-10-02 09:10', unit:'Sekretariat', action:'Menerima surat', status:'success'},
-							{time:'2025-10-02 09:25', unit:'Sekretariat', action:'Mendisposisikan ke Rektor', status:'success'},
-							{time:'2025-10-02 09:50', unit:'Rektor', action:'Meneruskan ke WR II', status:'success'},
-							{time:'2025-10-02 10:45', unit:'WR II', action:'Memberi instruksi ke SPI', status:'success'},
-							{time:'2025-10-02 11:30', unit:'SPI', action:'Menandai selesai', status:'success'},
-						] }">
+						<ol class="space-y-4 text-xs text-gray-600 dark:text-gray-300">
 							<template x-for="(s,i) in steps" :key="s.time + s.unit">
 								<li class="flex items-start gap-3">
 									<div class="flex flex-col items-center">

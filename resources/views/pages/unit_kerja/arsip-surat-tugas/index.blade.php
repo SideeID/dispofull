@@ -8,77 +8,74 @@
 		 }"
 		 @keydown.escape.window="closeAll()"
 	>
-		@php
-			// Placeholder arsip untuk unit kerja (subset informasi - tanpa opsi restore)
-			$archives = [
-				['number'=>'ST-112/BAA/2025','subject'=>'Pendampingan Yudisium','destination'=>'Tim Akademik','date'=>'2025-09-28','start'=>'2025-09-29','end'=>'2025-09-30','priority'=>'normal','participants'=>5,'files'=>1,'archived_at'=>'2025-10-02 10:30','reason'=>'Kegiatan selesai'],
-				['number'=>'ST-097/BAA/2025','subject'=>'Verifikasi Data Lulusan','destination'=>'Subbag Akademik','date'=>'2025-09-20','start'=>'2025-09-21','end'=>'2025-09-22','priority'=>'high','participants'=>4,'files'=>2,'archived_at'=>'2025-09-30 14:12','reason'=>'Selesai & dilaporkan'],
-				['number'=>'ST-083/BAA/2025','subject'=>'Monitoring PKL Semester','destination'=>'Koordinator PKL','date'=>'2025-09-15','start'=>'2025-09-16','end'=>'2025-09-18','priority'=>'low','participants'=>3,'files'=>0,'archived_at'=>'2025-09-25 09:05','reason'=>'Selesai'],
-			];
-			$priorityColors = [
-				'low' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-				'normal' => 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
-				'high' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-				'urgent' => 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-			];
-		@endphp
-
 		<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
 			<div>
 				<h1 class="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
 					<span class="inline-flex items-center justify-center h-11 w-11 rounded-lg bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 text-white shadow ring-1 ring-slate-400/30">
 						<i data-feather="archive" class="w-5 h-5"></i>
 					</span>
-					Arsip Surat Tugas (Unit Kerja)
+					Arsip Surat Tugas
 				</h1>
 			</div>
 			<div class="flex items-center gap-3">
-				<button @click="$dispatch('refresh-archive-letters')" class="btn bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
-					<i data-feather="refresh-cw" class="w-4 h-4"></i>
-					<span class="hidden sm:inline">Refresh</span>
-				</button>
-				<button @click="open('showExport')" class="btn bg-slate-700 hover:bg-slate-600 text-white border-0 shadow-sm flex items-center gap-2">
+				<button @click="open('showExport')" class="btn bg-yellow-600 hover:bg-yellow-500 text-white flex items-center gap-2">
 					<i data-feather="download" class="w-4 h-4"></i>
 					<span class="hidden sm:inline">Export</span>
 				</button>
+				<button @click="$dispatch('open-archive-modal')" class="btn bg-orange-600 hover:bg-orange-500 text-white flex items-center gap-2">
+					<i data-feather="archive" class="w-4 h-4"></i>
+					<span class="hidden sm:inline">Arsipkan</span>
+				</button>
+				{{-- <form method="GET" action="{{ route('unit_kerja.archives.export') }}">
+					<input type="hidden" name="q" value="{{ request('q') }}" />
+					<input type="hidden" name="date" value="{{ request('date') }}" />
+					<input type="hidden" name="priority" value="{{ request('priority') }}" />
+					<input type="hidden" name="start_from" value="{{ request('start_from') }}" />
+					<input type="hidden" name="end_to" value="{{ request('end_to') }}" />
+					<button type="submit" class="btn bg-slate-700 hover:bg-slate-600 text-white border-0 shadow-sm flex items-center gap-2">
+						<i data-feather="download" class="w-4 h-4"></i>
+						<span class="hidden sm:inline">Export</span>
+					</button>
+				</form> --}}
 			</div>
 		</div>
 
 		<!-- Filter -->
 		<div class="bg-white dark:bg-gray-800 rounded-lg ring-1 ring-gray-200 dark:ring-gray-700 p-5 mb-6">
-			<form method="GET" action="#" class="grid gap-4 md:gap-6 md:grid-cols-7 items-end text-sm">
+			<form method="GET" action="{{ route('unit_kerja.arsip.surat.tugas') }}" class="grid gap-4 md:gap-6 md:grid-cols-7 items-end text-sm">
 				<div class="md:col-span-2">
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Pencarian</label>
 					<div class="relative">
-						<input type="text" name="q" placeholder="Nomor / perihal / tujuan" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100" />
+						<input type="text" name="q" value="{{ request('q') }}" placeholder="Nomor / perihal / tujuan" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100" />
 						<i data-feather="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
 					</div>
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Tanggal Surat</label>
-					<input type="date" name="date" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100" />
+					<input type="date" name="date" value="{{ request('date') }}" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100" />
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Prioritas</label>
 					<select name="priority" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100">
-						<option value="">Semua</option>
-						<option value="low">Low</option>
-						<option value="normal">Normal</option>
-						<option value="high">High</option>
-						<option value="urgent">Urgent</option>
+						@php $selp = request('priority'); @endphp
+						<option value="" @selected($selp==='')>Semua</option>
+						<option value="low" @selected($selp==='low')>Low</option>
+						<option value="normal" @selected($selp==='normal')>Normal</option>
+						<option value="high" @selected($selp==='high')>High</option>
+						<option value="urgent" @selected($selp==='urgent')>Urgent</option>
 					</select>
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Periode Mulai</label>
-					<input type="date" name="start_from" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100" />
+					<input type="date" name="start_from" value="{{ request('start_from') }}" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100" />
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Periode Selesai</label>
-					<input type="date" name="end_to" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100" />
+					<input type="date" name="end_to" value="{{ request('end_to') }}" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:focus:ring-slate-500 text-gray-700 dark:text-gray-100" />
 				</div>
 				<div class="flex gap-2 md:col-span-1">
 					<button class="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg px-4 py-2 transition">Filter</button>
-					<a href="#" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg px-4 py-2 text-xs text-center">Reset</a>
+					<a href="{{ route('unit_kerja.arsip.surat.tugas') }}" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg px-4 py-2 text-xs text-center">Reset</a>
 				</div>
 			</form>
 		</div>
@@ -103,7 +100,6 @@
 							<th class="px-5 py-3 text-left font-semibold">Periode</th>
 							<th class="px-5 py-3 text-left font-semibold">Prioritas</th>
 							<th class="px-5 py-3 text-left font-semibold">Lampiran</th>
-							<th class="px-5 py-3 text-left font-semibold">Arsip</th>
 							<th class="px-5 py-3 text-right font-semibold">Aksi</th>
 						</tr>
 					</thead>
@@ -123,16 +119,20 @@
 							<td class="px-5 py-3 text-gray-600 dark:text-gray-300 align-top">{{ $a['destination'] }}</td>
 							<td class="px-5 py-3 text-gray-600 dark:text-gray-300 align-top">
 								<div>{{ $a['start'] }} s/d {{ $a['end'] }}</div>
-								<div class="text-[10px] text-gray-400 dark:text-gray-500">{{ (new DateTime($a['end']))->diff(new DateTime($a['start']))->days + 1 }} hari</div>
+								@php
+									$dur = null;
+									if(!empty($a['start']) && !empty($a['end'])){
+										try { $dur = (new DateTime($a['end']))->diff(new DateTime($a['start']))->days + 1; } catch(Exception $e) { $dur = null; }
+									}
+								@endphp
+								@if($dur)
+									<div class="text-[10px] text-gray-400 dark:text-gray-500">{{ $dur }} hari</div>
+								@endif
 							</td>
 							<td class="px-5 py-3 align-top">
-								<span class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $priorityColors[$a['priority']] }}">{{ $a['priority'] }}</span>
+								<span class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $priorityColors[$a['priority']] ?? 'bg-slate-500/10 text-slate-600 dark:text-slate-300' }}">{{ $a['priority'] }}</span>
 							</td>
 							<td class="px-5 py-3 text-gray-600 dark:text-gray-300 align-top">{{ $a['files'] }}</td>
-							<td class="px-5 py-3 text-gray-600 dark:text-gray-300 align-top">
-								<div class="text-[11px] text-gray-500 dark:text-gray-400">{{ $a['archived_at'] }}</div>
-								<div class="text-[10px] text-gray-400 dark:text-gray-500">{{ $a['reason'] }}</div>
-							</td>
 							<td class="px-5 py-3 text-right align-top">
 								<div class="flex items-center justify-end gap-1">
 									<button @click="open('showView', row)" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-slate-600 dark:text-slate-300" title="Detail"><i data-feather='eye' class='w-4 h-4'></i></button>
@@ -146,13 +146,8 @@
 				</table>
 			</div>
 			<div class="px-5 py-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
-				<span>Menampilkan {{ count($archives) }} arsip</span>
-				<div class="flex gap-1">
-					<button class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-400" disabled><i data-feather="chevron-left" class="w-3 h-3"></i></button>
-					<button class="px-2 py-1 rounded bg-amber-600 text-white">1</button>
-					<button class="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300">2</button>
-					<button class="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"><i data-feather="chevron-right" class="w-3 h-3"></i></button>
-				</div>
+				<span>Menampilkan {{ $paginator->total() }} arsip</span>
+				<div class="text-xs">{{ $paginator->appends(request()->query())->links() }}</div>
 			</div>
 		</div>
 
@@ -161,6 +156,8 @@
 		@include('pages.unit_kerja.arsip-surat-tugas.detail.attachment-modal')
 		@include('pages.unit_kerja.arsip-surat-tugas.detail.history-modal')
 		@include('pages.unit_kerja.arsip-surat-tugas.detail.export-modal')
+
+		@include('pages.unit_kerja.arsip-surat-tugas.detail.archive-modal')
 
 		<div class="mt-10 text-center text-[11px] text-gray-400 dark:text-gray-600">Sistem Pengelolaan Surat · Universitas Bakrie</div>
 	</div>

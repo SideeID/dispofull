@@ -18,7 +18,6 @@ class DatabaseSeeder extends Seeder
         $this->call([
             DepartmentSeeder::class,
             LetterTypeSeeder::class,
-            DashboardTableSeeder::class,
             UserSeeder::class,
             LetterSeeder::class,
             LetterDispositionSeeder::class,

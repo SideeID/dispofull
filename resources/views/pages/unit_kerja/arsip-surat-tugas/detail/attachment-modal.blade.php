@@ -11,8 +11,15 @@
 			</div>
 			<div class="space-y-4 text-sm">
 				<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-					<li class="flex items-center justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/40"><span>laporan_kegiatan.pdf</span><button class="text-slate-500 dark:text-slate-400 hover:underline">Unduh</button></li>
-					<li class="flex items-center justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/40"><span>foto_kegiatan.zip</span><button class="text-slate-500 dark:text-slate-400 hover:underline">Unduh</button></li>
+					<template x-if="!selected?.attachments || !selected.attachments.length">
+						<li class="text-gray-400">Tidak ada lampiran</li>
+					</template>
+					<template x-for="a in (selected?.attachments || [])" :key="a.url + a.name">
+						<li class="flex items-center justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/40">
+							<span x-text="a.name"></span>
+							<a :href="a.url" target="_blank" class="text-slate-500 dark:text-slate-400 hover:underline">Unduh</a>
+						</li>
+					</template>
 				</ul>
 				<p class="text-[11px] text-gray-400 dark:text-gray-500">Lampiran hanya-baca. Tidak dapat diubah pada arsip.</p>
 			</div>

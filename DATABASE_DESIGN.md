@@ -2,207 +2,163 @@
 
 Dokumen ini merangkum rancangan database berdasarkan seluruh migration dan model Eloquent yang ada di repo ini. Mencakup ERD, deskripsi tabel, relasi, enum/state, indexing, serta catatan implementasi untuk fitur utama: tracking surat, arsip digital, tanda tangan elektronik/digital, penomoran otomatis, dan agenda PDF.
 
-## ERD (Mermaid)
-
-Diagram di bawah menggunakan Mermaid (dirender otomatis oleh GitHub/VS Code Markdown Preview).
+## ERD
 
 ```mermaid
 erDiagram
-	USERS {
-		bigint id PK
-		string name
-		string username UNIQUE
-		string email UNIQUE
-		timestamp email_verified_at NULL
-		string password
-		string nip UNIQUE NULL
-		string phone NULL
-		string position NULL
-		enum role "admin|rektorat|unit_kerja"
-		enum status "active|inactive"
-		bigint department_id FK NULL
-		string profile_photo_path NULL
-		text signature_path NULL
-		text two_factor_secret NULL
-		text two_factor_recovery_codes NULL
-		timestamp two_factor_confirmed_at NULL
-		timestamps timestamps
-	}
+  USERS {
+    int id
+    string name
+    string username
+    string email
+    datetime email_verified_at
+    string password
+    string nip
+    string phone
+    string position
+    string role
+    string status
+    int department_id
+    string profile_photo_path
+    string signature_path
+    string two_factor_secret
+    string two_factor_recovery_codes
+    datetime two_factor_confirmed_at
+  }
 
-	DEPARTMENTS {
-		bigint id PK
-		string name
-		string code UNIQUE
-		text description NULL
-		enum type "rektorat|unit_kerja"
-		boolean is_active
-		timestamps timestamps
-	}
+  DEPARTMENTS {
+    int id
+    string name
+    string code
+    string description
+    string type
+    boolean is_active
+  }
 
-	LETTER_TYPES {
-		bigint id PK
-		string name
-		string code UNIQUE
-		text description NULL
-		string number_format NULL
-		boolean is_active
-		timestamps timestamps
-	}
+  LETTER_TYPES {
+    int id
+    string name
+    string code
+    string description
+    string number_format
+    boolean is_active
+  }
 
-	LETTERS {
-		bigint id PK
-		string letter_number UNIQUE
-		string subject
-		text content NULL
-		date letter_date
-		enum direction "incoming|outgoing"
-		enum status "draft|pending|processed|archived|rejected"
-		enum priority "low|normal|high|urgent"
-		string sender_name NULL
-		string sender_address NULL
-		string recipient_name NULL
-		string recipient_address NULL
-		bigint letter_type_id FK
-		bigint created_by FK
-		bigint from_department_id FK NULL
-		bigint to_department_id FK NULL
-		string original_file_path NULL
-		string signed_file_path NULL
-		timestamp received_at NULL
-		timestamp processed_at NULL
-		timestamp archived_at NULL
-		text notes NULL
-		timestamps timestamps
-	}
+  LETTERS {
+    int id
+    string letter_number
+    string subject
+    string content
+    date letter_date
+    string direction
+    string status
+    string priority
+    string sender_name
+    string sender_address
+    string recipient_name
+    string recipient_address
+    int letter_type_id
+    int created_by
+    int from_department_id
+    int to_department_id
+    string original_file_path
+    string signed_file_path
+    datetime received_at
+    datetime processed_at
+    datetime archived_at
+    string notes
+  }
 
-	LETTER_DISPOSITIONS {
-		bigint id PK
-		bigint letter_id FK
-		bigint from_user_id FK
-		bigint to_user_id FK
-		bigint to_department_id FK NULL
-		text instruction
-		enum priority "low|normal|high|urgent"
-		date due_date NULL
-		enum status "pending|in_progress|completed|returned"
-		text response NULL
-		timestamp read_at NULL
-		timestamp completed_at NULL
-		timestamps timestamps
-	}
+  LETTER_DISPOSITIONS {
+    int id
+    int letter_id
+    int from_user_id
+    int to_user_id
+    int to_department_id
+    string instruction
+    string priority
+    date due_date
+    string status
+    string response
+    datetime read_at
+    datetime completed_at
+  }
 
-	LETTER_ATTACHMENTS {
-		bigint id PK
-		bigint letter_id FK
-		string original_name
-		string file_name
-		string file_path
-		string file_type
-		bigint file_size
-		text description NULL
-		bigint uploaded_by FK
-		timestamps timestamps
-	}
+  LETTER_ATTACHMENTS {
+    int id
+    int letter_id
+    string original_name
+    string file_name
+    string file_path
+    string file_type
+    int file_size
+    string description
+    int uploaded_by
+  }
 
-	LETTER_SIGNATURES {
-		bigint id PK
-		bigint letter_id FK
-		bigint user_id FK
-		enum signature_type "digital|electronic"
-		string signature_path NULL
-		text signature_data NULL
-		timestamp signed_at NULL
-		string ip_address NULL
-		text user_agent NULL
-		enum status "pending|signed|rejected"
-		text notes NULL
-		timestamps timestamps
-	}
+  LETTER_SIGNATURES {
+    int id
+    int letter_id
+    int user_id
+    string signature_type
+    string signature_path
+    string signature_data
+    datetime signed_at
+    string ip_address
+    string user_agent
+    string status
+    string notes
+  }
 
-	LETTER_NUMBER_SEQUENCES {
-		bigint id PK
-		bigint letter_type_id FK
-		bigint department_id FK NULL
-		year year
-		uint last_number
-		string prefix NULL
-		string suffix NULL
-		timestamps timestamps
-		UNIQUE "(letter_type_id, department_id, year)"
-	}
+  LETTER_NUMBER_SEQUENCES {
+    int id
+    int letter_type_id
+    int department_id
+    int year
+    int last_number
+    string prefix
+    string suffix
+  }
 
-	LETTER_AGENDAS {
-		bigint id PK
-		string title
-		text description NULL
-		date agenda_date
-		date start_date
-		date end_date
-		enum type "daily|weekly|monthly"
-		bigint department_id FK NULL
-		bigint created_by FK
-		enum status "draft|published|archived"
-		string pdf_path NULL
-		json filters NULL
-		timestamps timestamps
-	}
+  LETTER_AGENDAS {
+    int id
+    string title
+    string description
+    date agenda_date
+    date start_date
+    date end_date
+    string type
+    int department_id
+    int created_by
+    string status
+    string pdf_path
+    string filters
+  }
 
-	PERSONAL_ACCESS_TOKENS {
-		bigint id PK
-		morphs tokenable
-		string name
-		string token UNIQUE
-		text abilities NULL
-		timestamp last_used_at NULL
-		timestamp expires_at NULL
-		timestamps timestamps
-	}
+  %% Relationships
+  DEPARTMENTS ||--o{ USERS : department_id
+  LETTER_TYPES ||--o{ LETTERS : letter_type_id
+  USERS ||--o{ LETTERS : created_by
+  DEPARTMENTS ||--o{ LETTERS : from_department_id
+  DEPARTMENTS ||--o{ LETTERS : to_department_id
 
-	SESSIONS {
-		string id PK
-		bigint user_id NULL INDEX
-		string ip_address NULL
-		text user_agent NULL
-		text payload
-		int last_activity INDEX
-	}
+  LETTERS ||--o{ LETTER_DISPOSITIONS : letter_id
+  USERS ||--o{ LETTER_DISPOSITIONS : from_user_id
+  USERS ||--o{ LETTER_DISPOSITIONS : to_user_id
+  DEPARTMENTS ||--o{ LETTER_DISPOSITIONS : to_department_id
 
-	FAILED_JOBS {
-		bigint id PK
-		string uuid UNIQUE
-		text connection
-		text queue
-		longtext payload
-		longtext exception
-		timestamp failed_at
-	}
+  LETTERS ||--o{ LETTER_ATTACHMENTS : letter_id
+  USERS ||--o{ LETTER_ATTACHMENTS : uploaded_by
 
-	%% Relationships
-	DEPARTMENTS ||--o{ USERS : "department_id"
-	LETTER_TYPES ||--o{ LETTERS : "letter_type_id"
-	USERS ||--o{ LETTERS : "created_by"
-	DEPARTMENTS ||--o{ LETTERS : "from_department_id"
-	DEPARTMENTS ||--o{ LETTERS : "to_department_id"
+  LETTERS ||--o{ LETTER_SIGNATURES : letter_id
+  USERS ||--o{ LETTER_SIGNATURES : user_id
 
-	LETTERS ||--o{ LETTER_DISPOSITIONS : "letter_id"
-	USERS ||--o{ LETTER_DISPOSITIONS : "from_user_id"
-	USERS ||--o{ LETTER_DISPOSITIONS : "to_user_id"
-	DEPARTMENTS ||--o{ LETTER_DISPOSITIONS : "to_department_id"
+  LETTER_TYPES ||--o{ LETTER_NUMBER_SEQUENCES : letter_type_id
+  DEPARTMENTS ||--o{ LETTER_NUMBER_SEQUENCES : department_id
 
-	LETTERS ||--o{ LETTER_ATTACHMENTS : "letter_id"
-	USERS ||--o{ LETTER_ATTACHMENTS : "uploaded_by"
-
-	LETTERS ||--o{ LETTER_SIGNATURES : "letter_id"
-	USERS ||--o{ LETTER_SIGNATURES : "user_id"
-
-	LETTER_TYPES ||--o{ LETTER_NUMBER_SEQUENCES : "letter_type_id"
-	DEPARTMENTS ||--o{ LETTER_NUMBER_SEQUENCES : "department_id"
-
-	DEPARTMENTS ||--o{ LETTER_AGENDAS : "department_id"
-	USERS ||--o{ LETTER_AGENDAS : "created_by"
+  DEPARTMENTS ||--o{ LETTER_AGENDAS : department_id
+  USERS ||--o{ LETTER_AGENDAS : created_by
 ```
-
-Catatan: Tabel pendukung standar Laravel (sessions, personal_access_tokens, failed_jobs) disertakan untuk kelengkapan namun tidak menjadi domain inti.
 
 ---
 

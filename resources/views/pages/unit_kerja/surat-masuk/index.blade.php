@@ -4,35 +4,12 @@
 		 x-init="init()"
 		 @keydown.escape.window="closeAll()"
 	>
-		@php
-			// Placeholder data surat masuk untuk unit kerja
-			// (Nanti diganti query: IncomingLetter::forUnit(auth()->user()->unit_id)->latest()->paginate())
-			$incoming = [
-				['number'=>'SM-102/UK/2025','subject'=>'Permintaan Data Inventaris','from'=>'BAA','date'=>'2025-10-02','priority'=>'normal','status'=>'pending','attachments'=>1,'dispositions'=>0,'category'=>'Internal'],
-				['number'=>'SM-099/EXT/2025','subject'=>'Undangan Workshop Digitalisasi','from'=>'PT Teknologi Nusantara','date'=>'2025-10-02','priority'=>'high','status'=>'review','attachments'=>2,'dispositions'=>1,'category'=>'Eksternal'],
-				['number'=>'SM-095/UK/2025','subject'=>'Rencana Audit Internal','from'=>'SPI','date'=>'2025-10-01','priority'=>'urgent','status'=>'in_progress','attachments'=>0,'dispositions'=>2,'category'=>'Internal'],
-				['number'=>'SM-091/EXT/2025','subject'=>'Penawaran Kerja Sama','from'=>'CV Solusi Media','date'=>'2025-09-30','priority'=>'low','status'=>'processed','attachments'=>3,'dispositions'=>1,'category'=>'Eksternal'],
-				['number'=>'SM-087/UK/2025','subject'=>'Notulensi Rapat Koordinasi','from'=>'Sekretariat','date'=>'2025-09-29','priority'=>'normal','status'=>'processed','attachments'=>1,'dispositions'=>3,'category'=>'Internal'],
-			];
-			$priorityColors = [
-				'low' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-				'normal' => 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
-				'high' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-				'urgent' => 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-			];
-			$statusColors = [
-				'pending' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-				'in_progress' => 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-				'processed' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-				'review' => 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
-			];
-		@endphp
 
 		<!-- Header -->
 		<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
 			<div>
 				<h1 class="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
-					<span class="inline-flex items-center justify-center h-11 w-11 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow ring-1 ring-indigo-400/40">
+					<span class="inline-flex items-center justify-center h-11 w-11 rounded-lg bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 text-white shadow ring-1 ring-indigo-400/40">
 						<i data-feather="inbox" class="w-5 h-5"></i>
 					</span>
 					Surat Masuk
@@ -44,7 +21,7 @@
 					<i data-feather="refresh-cw" class="w-4 h-4"></i>
 					<span class="hidden sm:inline">Refresh</span>
 				</button>
-				<button @click="open('showExport')" class="btn bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-4 py-2 flex items-center gap-2">
+				<button @click="open('showExport')" class="btn bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-medium px-4 py-2 flex items-center gap-2">
 					<i data-feather="download" class="w-4 h-4"></i>
 					<span class="hidden sm:inline">Export</span>
 				</button>
@@ -53,53 +30,56 @@
 
 		<!-- Filters -->
 		<div class="bg-white dark:bg-gray-800 rounded-lg ring-1 ring-gray-200 dark:ring-gray-700 p-5 mb-6">
-			<form method="GET" action="#" class="grid gap-4 md:gap-6 md:grid-cols-7 items-end text-sm">
+			<form method="GET" action="{{ route('unit_kerja.surat.masuk') }}" class="grid gap-4 md:gap-6 md:grid-cols-7 items-end text-sm">
 				<div class="md:col-span-2">
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Pencarian</label>
 					<div class="relative">
 						<i data-feather="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-						<input type="text" name="q" placeholder="Nomor / Perihal / Pengirim" class="w-full pl-9 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100" />
+						<input type="text" name="q" value="{{ request('q') }}" placeholder="Nomor / Perihal / Pengirim" class="w-full pl-9 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100" />
 					</div>
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Tanggal Dari</label>
-					<input type="date" name="date_from" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100" />
+					<input type="date" name="date_from" value="{{ request('date_from') }}" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100" />
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Tanggal Sampai</label>
-					<input type="date" name="date_to" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100" />
+					<input type="date" name="date_to" value="{{ request('date_to') }}" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100" />
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Status</label>
+					@php $s = request('status'); @endphp
 					<select name="status" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100">
-						<option value="">Semua</option>
-						<option value="pending">Pending</option>
-						<option value="in_progress">In Progress</option>
-						<option value="processed">Processed</option>
-						<option value="review">Review</option>
+						<option value="" @selected($s==='')>Semua</option>
+						<option value="pending" @selected($s==='pending')>Pending</option>
+						<option value="in_progress" @selected($s==='in_progress')>In Progress</option>
+						<option value="processed" @selected($s==='processed')>Processed</option>
+						<option value="review" @selected($s==='review')>Review</option>
 					</select>
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Prioritas</label>
+					@php $p = request('priority'); @endphp
 					<select name="priority" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100">
-						<option value="">Semua</option>
-						<option value="low">Low</option>
-						<option value="normal">Normal</option>
-						<option value="high">High</option>
-						<option value="urgent">Urgent</option>
+						<option value="" @selected($p==='')>Semua</option>
+						<option value="low" @selected($p==='low')>Low</option>
+						<option value="normal" @selected($p==='normal')>Normal</option>
+						<option value="high" @selected($p==='high')>High</option>
+						<option value="urgent" @selected($p==='urgent')>Urgent</option>
 					</select>
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Kategori</label>
+					@php $c = request('category'); @endphp
 					<select name="category" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-500 text-gray-700 dark:text-gray-100">
-						<option value="">Semua</option>
-						<option value="Internal">Internal</option>
-						<option value="Eksternal">Eksternal</option>
+						<option value="" @selected($c==='')>Semua</option>
+						<option value="Internal" @selected($c==='Internal')>Internal</option>
+						<option value="Eksternal" @selected($c==='Eksternal')>Eksternal</option>
 					</select>
 				</div>
 				<div class="flex gap-2 md:col-span-1">
-					<button class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg px-4 py-2 transition">Filter</button>
-					<a href="#" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg px-4 py-2 text-xs text-center">Reset</a>
+					<button class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-medium rounded-lg px-4 py-2 transition">Filter</button>
+					<a href="{{ route('unit_kerja.surat.masuk') }}" class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg px-4 py-2 text-xs text-center">Reset</a>
 				</div>
 			</form>
 		</div>
@@ -161,7 +141,7 @@
 				</table>
 			</div>
 			<div class="px-5 py-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
-				<span>Menampilkan {{ count($incoming) }} dari {{ count($incoming) }} surat</span>
+				<span>Menampilkan {{ count($incoming) }} surat</span>
 				<div class="flex gap-1">
 					<button class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-400" disabled><i data-feather="chevron-left" class="w-3 h-3"></i></button>
 					<button class="px-2 py-1 rounded bg-indigo-600 text-white">1</button>

@@ -78,7 +78,6 @@
                         <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Surat & Tugas</div>
                         {!! $navItem('Surat Masuk','inbox','surat.masuk',['surat.masuk'],18) !!}
                         {!! $navItem('Surat Tugas','file-text','surat.tugas',['surat.tugas'],11,'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 dark:bg-indigo-400/10') !!}
-                        {!! $navItem('Inbox Surat Tugas','mail','inbox.surat.tugas',['inbox.surat.tugas'],4,'bg-rose-500/10 text-rose-600 dark:text-rose-300 dark:bg-rose-400/10') !!}
                         {!! $navItem('Buat / Tindaklanjuti ST','edit','tindaklanjut.surat.tugas',['tindaklanjut.surat.tugas']) !!}
                         {!! $navItem('History Disposisi','clock','history.disposisi',['history.disposisi'],9,'bg-amber-500/10 text-amber-600 dark:text-amber-300 dark:bg-amber-400/10') !!}
                         {!! $navItem('Arsip Surat Tugas','archive','arsip.surat.tugas',['arsip.surat.tugas'],142,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}

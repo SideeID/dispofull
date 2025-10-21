@@ -32,12 +32,7 @@
 						</div>
 						<div>
 							<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500">Status</div>
-							<div><span class="px-2 py-0.5 rounded-full text-[11px] font-medium" :class="{
-								'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400': selected?.status=='in_progress',
-								'bg-blue-500/10 text-blue-600 dark:text-blue-400': selected?.status=='forwarded',
-								'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400': selected?.status=='completed',
-								'bg-slate-500/10 text-slate-600 dark:text-slate-400': selected?.status=='archived'
-							}" x-text="selected?.status"></span></div>
+							<div><span class="px-2 py-0.5 rounded-full text-[11px] font-medium" :class="statusClass(normalizeStatus(selected||{}))" x-text="normalizeStatus(selected||{})"></span></div>
 						</div>
 					</div>
 					<div>
@@ -65,15 +60,16 @@
 					</div>
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Aktivitas Terakhir</div>
-						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-							<li>2025-10-02 11:30 · Disposisi selesai (dummy)</li>
-							<li>2025-10-02 10:45 · Diteruskan ke WR II</li>
+						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300" x-data="{ lastActivities: [] }" x-init="(async()=>{ await loadTimeline(); lastActivities = (logs||[]).slice(0,3); })()">
+							<template x-for="l in lastActivities" :key="l.time + l.actor">
+								<li x-text="`${l.time} · ${l.actor} · ${l.action}`"></li>
+							</template>
 						</ul>
 					</div>
 					<div class="flex gap-2">
-						<button @click="closeAll(); open('showRoute', selected)" class="flex-1 px-4 py-2 rounded-lg text-xs bg-violet-600 hover:bg-violet-500 text-white font-medium">Alur</button>
-						<button @click="closeAll(); open('showNotes', selected)" class="flex-1 px-4 py-2 rounded-lg text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">Catatan</button>
-						<button @click="closeAll(); open('showAttachments', selected)" x-show="selected?.attachments>0" class="flex-1 px-4 py-2 rounded-lg text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">Lampiran</button>
+						<button @click="closeAll(); showRoute=true; await loadRoute();" class="flex-1 px-4 py-2 rounded-lg text-xs bg-violet-600 hover:bg-violet-500 text-white font-medium">Alur</button>
+						<button @click="closeAll(); showNotes=true; await loadNotes();" class="flex-1 px-4 py-2 rounded-lg text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">Catatan</button>
+						<button @click="closeAll(); showAttachments=true; await loadAttachments();" x-show="selected?.attachments>0" class="flex-1 px-4 py-2 rounded-lg text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">Lampiran</button>
 					</div>
 				</div>
 			</div>

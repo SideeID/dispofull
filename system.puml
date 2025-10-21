@@ -1,0 +1,263 @@
+@startuml UseCase
+skinparam shadowing false
+skinparam dpi 150
+left to right direction
+
+actor Admin as Admin
+actor Rektorat as Rektorat
+actor "Unit Kerja" as UnitKerja
+
+rectangle "E‑Surat" {
+	usecase "Kelola Sistem &\nPemeliharaan" as UC_Admin_Maintenance
+	usecase "Monitoring Performa" as UC_Admin_Monitoring
+	usecase "Pengaturan Akses &\nRole Pengguna" as UC_Admin_Access
+	usecase "Kelola Departemen" as UC_Admin_Department
+	usecase "Kelola Jenis Surat" as UC_Admin_LetterType
+
+	usecase "Dashboard" as UC_Rektor_Dashboard
+	usecase "Lihat Surat Masuk" as UC_Rektor_Incoming
+	usecase "Surat Tugas" as UC_Rektor_TaskLetters
+	usecase "Inbox Surat Tugas" as UC_Rektor_TaskInbox
+	usecase "History Disposisi" as UC_Rektor_DispoHistory
+	usecase "Buat / Tindaklanjuti\nSurat Tugas" as UC_Rektor_CreateFollowTask
+	usecase "Arsip Surat Tugas" as UC_Rektor_TaskArchive
+	usecase "Disposisi Surat Masuk" as UC_Rektor_Disposition
+	' usecase ditunda: Tanda Tangan Elektronik/Digital
+
+	usecase "Dashboard" as UC_Unit_Dashboard
+	usecase "Surat Masuk" as UC_Unit_Incoming
+	usecase "Buat Surat" as UC_Unit_CreateLetter
+	usecase "Arsip Surat Tugas" as UC_Unit_TaskArchive
+	usecase "Upload Lampiran" as UC_Unit_UploadAttachment
+	usecase "Nomor Surat Otomatis" as UC_Unit_AutoNumber
+	' usecase ditunda: Ajukan Tanda Tangan
+}
+
+Admin -right-> UC_Admin_Maintenance
+Admin -right-> UC_Admin_Monitoring
+Admin -right-> UC_Admin_Access
+Admin -right-> UC_Admin_Department
+Admin -right-> UC_Admin_LetterType
+
+Rektorat -left-> UC_Rektor_Dashboard
+Rektorat -left-> UC_Rektor_Incoming
+Rektorat -left-> UC_Rektor_TaskLetters
+Rektorat -left-> UC_Rektor_TaskInbox
+Rektorat -left-> UC_Rektor_DispoHistory
+Rektorat -left-> UC_Rektor_CreateFollowTask
+Rektorat -left-> UC_Rektor_TaskArchive
+Rektorat -left-> UC_Rektor_Disposition
+'' hubungan ditunda: Rektorat -- UC_Rektor_Sign
+
+UnitKerja -- UC_Unit_Dashboard
+UnitKerja -- UC_Unit_Incoming
+UnitKerja -- UC_Unit_CreateLetter
+UnitKerja -- UC_Unit_TaskArchive
+UnitKerja -- UC_Unit_UploadAttachment
+UnitKerja -- UC_Unit_AutoNumber
+'' hubungan ditunda: UnitKerja -- UC_Unit_RequestSign
+
+UC_Unit_CreateLetter ..> UC_Unit_UploadAttachment : <<include>>
+UC_Unit_CreateLetter ..> UC_Unit_AutoNumber : <<include>>
+UC_Rektor_Incoming ..> UC_Rektor_Disposition : <<include>>
+
+'' note terkait tanda tangan ditunda
+@enduml
+
+
+@startuml ClassDiagram
+title Domain Model — Class Diagram
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam dpi 150
+
+package "Master" {
+	class Department {
+		+id: int
+		+name: string
+		+code: string
+		+description: string
+		+type: string  // rektorat|unit_kerja
+		+is_active: boolean
+	}
+
+	class LetterType {
+		+id: int
+		+name: string
+		+code: string
+		+description: string
+		+number_format: string
+		+is_active: boolean
+	}
+}
+
+package "Users" {
+	class User {
+		+id: int
+		+name: string
+		+username: string
+		+email: string
+		+role: string  // admin|rektorat|unit_kerja
+		+status: string // active|inactive
+		+department_id: int
+		+signature_path: string
+		+isAdmin(): bool
+		+isRektorat(): bool
+		+isUnitKerja(): bool
+	}
+}
+
+package "Letters" {
+	class Letter {
+		+id: int
+		+letter_number: string
+		+subject: string
+		+content: text
+		+letter_date: date
+		+direction: string // incoming|outgoing
+		+status: string    // draft|pending|processed|archived|rejected
+		+priority: string  // low|normal|high|urgent
+		+sender_name: string
+		+recipient_name: string
+		+original_file_path: string
+		+signed_file_path: string
+		+isIncoming(): bool
+		+isOutgoing(): bool
+		' +isSigned(): bool  ' ditunda
+	}
+
+	class LetterAttachment {
+		+id: int
+		+original_name: string
+		+file_path: string
+		+file_type: string
+		+file_size: int
+		+getFileUrl(): string
+		+fileExists(): bool
+		+deleteFile(): bool
+	}
+
+	' class LetterSignature { ... }  ' ditunda
+
+	class LetterDisposition {
+		+id: int
+		+instruction: text
+		+priority: string // low|normal|high|urgent
+		+due_date: date
+		+status: string // pending|in_progress|completed|returned
+		+response: text
+		+read_at: datetime
+		+completed_at: datetime
+		+isOverdue(): bool
+		+markAsRead(): void
+		+markAsCompleted(): void
+	}
+}
+
+package "Numbering & Agenda" {
+	class LetterNumberSequence {
+		+id: int
+		+year: int
+		+last_number: int
+		+prefix: string
+		+suffix: string
+		+getNextNumber(): int
+		+generateLetterNumber(): string
+		+generateUniqueLetterNumber(): string
+		+findOrCreate(letterTypeId: int, departmentId: int, year: int): LetterNumberSequence
+	}
+
+	class LetterAgenda {
+		+id: int
+		+title: string
+		+agenda_date: date
+		+start_date: date
+		+end_date: date
+		+type: string // daily|weekly|monthly
+		+status: string // draft|published|archived
+		+pdf_path: string
+		+filters: json
+		+getFilteredLetters(): List<Letter>
+		+generatePdf(): string
+	}
+}
+
+Department "1" o-- "0..*" User : department
+Department "1" o-- "0..*" Letter : from_department
+Department "1" o-- "0..*" Letter : to_department
+LetterType "1" o-- "0..*" Letter : type
+User "1" o-- "0..*" Letter : creator
+Letter "1" *-- "0..*" LetterAttachment : attachments
+'' relasi ditunda: Letter -> LetterSignature
+Letter "1" *-- "0..*" LetterDisposition : dispositions
+LetterType "1" o-- "0..*" LetterNumberSequence : sequences
+Department "1" o-- "0..*" LetterNumberSequence : sequences
+Department "1" o-- "0..*" LetterAgenda : agendas
+User "1" o-- "0..*" LetterAgenda : creator
+'' relasi ditunda: User -> LetterSignature
+User "1" o-- "0..*" LetterDisposition : from_user
+User "1" o-- "0..*" LetterDisposition : to_user
+User "1" o-- "0..*" LetterAttachment : uploader
+
+@enduml
+
+
+'' Sequence diagram terkait tanda tangan ditunda
+
+
+@startuml Sequence_IncomingDisposition
+title Sequence — Incoming Letter Disposition Workflow
+skinparam shadowing false
+skinparam dpi 150
+
+actor Rektorat
+participant WebApp
+participant "LetterService" as LetterService
+participant "DispositionService" as DispoSvc
+actor "Unit Kerja" as UnitKerja
+
+Rektorat -> WebApp : Buka surat masuk
+WebApp -> LetterService : Mark received_at
+LetterService --> WebApp : OK
+
+Rektorat -> WebApp : Buat disposisi ke Unit Kerja
+WebApp -> DispoSvc : create(letter_id, to_user/to_department)
+DispoSvc --> WebApp : status=pending
+
+UnitKerja -> WebApp : Buka daftar disposisi
+WebApp -> DispoSvc : markAsRead(disposition)
+DispoSvc --> WebApp : read_at set
+UnitKerja -> WebApp : Selesaikan pekerjaan
+WebApp -> DispoSvc : markAsCompleted(disposition, response)
+DispoSvc --> WebApp : status=completed, completed_at
+
+WebApp -> LetterService : Evaluasi status surat (processed/archived)
+LetterService --> WebApp : status terkini
+@enduml
+
+
+@startuml Activity_IncomingProcessing
+title Activity — Proses Surat Masuk
+skinparam shadowing false
+skinparam dpi 150
+
+start
+:Terima surat masuk;
+:Catat di sistem (metadata, file);
+if (Perlu disposisi?) then (Ya)
+	:Buat disposisi ke Unit Kerja/Pejabat;
+	:Notifikasi penerima disposisi;
+	repeat
+		:Penerima memproses tugas;
+	repeat while (Selesai?) is (Tidak)
+	:Update hasil/response;
+endif
+:Tandai surat diproses;
+if (Selesai siklus?) then (Ya)
+	:Arsipkan surat;
+else (Tidak)
+	:Follow-up lanjutan (disposisi tambahan / tindak lanjut);
+endif
+stop
+@enduml
+

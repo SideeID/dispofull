@@ -14,10 +14,12 @@
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4 h-full">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-3">Daftar Peserta</div>
 						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300 max-h-56 overflow-y-auto pr-1">
-							<li>Dr. Andi · Ketua</li>
-							<li>Ir. Budi · Anggota</li>
-							<li>Dr. Citra · Anggota</li>
-							<li>Sari, M.Sc · Anggota</li>
+							<template x-if="!selected?.participants_list || !selected.participants_list.length">
+								<li class="text-gray-400">Tidak ada peserta</li>
+							</template>
+							<template x-for="(p, i) in (selected?.participants_list || [])" :key="i">
+								<li x-text="(typeof p === 'string') ? p : (p?.nama ?? p?.name ?? '-')"></li>
+							</template>
 						</ul>
 					</div>
 				</div>
@@ -25,16 +27,7 @@
 					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Statistik Peserta</div>
 						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-							<li>Total: 5 Orang</li>
-							<li>Ketua: 1</li>
-							<li>Anggota: 4</li>
-						</ul>
-					</div>
-					<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
-						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Log Peserta (Terakhir)</div>
-						<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300 max-h-28 overflow-y-auto pr-1">
-							<li>2025-09-29 09:40 · Menambah Sari, M.Sc</li>
-							<li>2025-09-29 09:35 · Mengubah peran Budi menjadi Anggota</li>
+							<li>Total: <span x-text="(selected?.participants_list || []).length"></span> Orang</li>
 						</ul>
 					</div>
 				</div>
