@@ -96,13 +96,20 @@ Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function
             Route::get('/incoming-letters/{letter}/signatures', [RektoratController::class, 'incomingSignaturesIndex'])->name('incoming.signatures.index');
             Route::post('/incoming-letters/{letter}/signatures', [RektoratController::class, 'incomingSignaturesStore'])->name('incoming.signatures.store');
             Route::get('/incoming-letters/recipients/dispositions', [RektoratController::class, 'incomingDispositionRecipients'])->name('incoming.recipients');
-                        // History Disposisi (role rektorat)
-                        Route::get('/history/dispositions', [RektoratController::class, 'historyDispositionsIndex'])->name('history.dispositions.index');
-                        Route::get('/history/dispositions/{disposition}', [RektoratController::class, 'historyDispositionsShow'])->name('history.dispositions.show');
-                        Route::get('/history/dispositions/{disposition}/attachments', [RektoratController::class, 'historyDispositionsAttachments'])->name('history.dispositions.attachments');
-                        Route::get('/history/dispositions/{disposition}/route', [RektoratController::class, 'historyDispositionsRoute'])->name('history.dispositions.route');
-                        Route::get('/history/dispositions/{disposition}/notes', [RektoratController::class, 'historyDispositionsNotes'])->name('history.dispositions.notes');
-                        Route::get('/history/dispositions/{disposition}/history', [RektoratController::class, 'historyDispositionsTimeline'])->name('history.dispositions.history');
+            // History Disposisi (role rektorat)
+            Route::get('/history/dispositions', [RektoratController::class, 'historyDispositionsIndex'])->name('history.dispositions.index');
+            Route::get('/history/dispositions/{disposition}', [RektoratController::class, 'historyDispositionsShow'])->name('history.dispositions.show');
+            Route::get('/history/dispositions/{disposition}/attachments', [RektoratController::class, 'historyDispositionsAttachments'])->name('history.dispositions.attachments');
+            Route::get('/history/dispositions/{disposition}/route', [RektoratController::class, 'historyDispositionsRoute'])->name('history.dispositions.route');
+            Route::get('/history/dispositions/{disposition}/notes', [RektoratController::class, 'historyDispositionsNotes'])->name('history.dispositions.notes');
+            Route::get('/history/dispositions/{disposition}/history', [RektoratController::class, 'historyDispositionsTimeline'])->name('history.dispositions.history');
+            // Arsip Surat Tugas (role rektorat)
+            Route::get('/archives/assignments', [RektorSuratTugasController::class, 'archivesIndex'])->name('archives.assignments.index');
+            Route::get('/archives/assignments/{letter}', [RektorSuratTugasController::class, 'archivesShow'])->name('archives.assignments.show');
+            Route::get('/archives/assignments/{letter}/participants', [RektorSuratTugasController::class, 'archivesParticipantsIndex'])->name('archives.assignments.participants');
+            Route::get('/archives/assignments/{letter}/attachments', [RektorSuratTugasController::class, 'archivesAttachmentsIndex'])->name('archives.assignments.attachments');
+            Route::get('/archives/assignments/{letter}/history', [RektorSuratTugasController::class, 'archivesHistory'])->name('archives.assignments.history');
+            Route::post('/archives/assignments/{letter}/restore', [RektorSuratTugasController::class, 'archivesRestore'])->name('archives.assignments.restore');
         });
 });
 

@@ -8,6 +8,7 @@ use App\Models\LetterNumberSequence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class RektorSuratTugasController extends Controller
 {
@@ -321,5 +322,185 @@ class RektorSuratTugasController extends Controller
             }
         }
         return [];
+    }
+
+    /**
+     * Archives — list archived Surat Tugas (ST outgoing) with filters and pagination.
+     */
+    public function archivesIndex(Request $request)
+    {
+        $perPage = (int) $request->integer('per_page', 10);
+        $q = trim((string) $request->get('q', ''));
+        $date = $request->date('date');
+        $startFrom = $request->date('start_from');
+        $endTo = $request->date('end_to');
+        $priority = $request->get('priority');
+
+        $letterTypeId = LetterType::where('code', 'ST')->value('id');
+        if (!$letterTypeId) {
+            return response()->json(['data' => [], 'meta' => ['total' => 0]], 200);
+        }
+
+        $query = Letter::query()
+            ->where('letter_type_id', $letterTypeId)
+            ->where('direction', 'outgoing')
+            ->where('status', 'archived')
+            ->withCount('attachments');
+
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('letter_number', 'like', "%{$q}%")
+                    ->orWhere('subject', 'like', "%{$q}%")
+                    ->orWhere('recipient_name', 'like', "%{$q}%")
+                    ->orWhere('notes', 'like', "%{$q}%");
+            });
+        }
+        if ($date) { $query->whereDate('letter_date', $date); }
+        if ($startFrom) { $query->whereDate('letter_date', '>=', $startFrom); }
+        if ($endTo) { $query->whereDate('letter_date', '<=', $endTo); }
+        if ($priority) { $query->where('priority', $priority); }
+
+        $query->orderByDesc('archived_at')->orderByDesc('letter_date')->orderByDesc('id');
+        $paginator = $query->paginate($perPage);
+
+        $items = collect($paginator->items())->map(function (Letter $l) {
+            $notes = $this->parseNotes($l->notes);
+            return [
+                'id' => $l->id,
+                'number' => $l->letter_number,
+                'subject' => $l->subject,
+                'destination' => $notes['tujuanInternal'][0] ?? ($notes['tujuanExternal'][0] ?? null),
+                'date' => optional($l->letter_date)->toDateString(),
+                'start' => $notes['start_date'] ?? null,
+                'end' => $notes['end_date'] ?? null,
+                'priority' => $l->priority,
+                'status' => $l->status,
+                'participants' => isset($notes['participants']) ? count($notes['participants']) : 0,
+                'files' => $l->attachments_count,
+                'archived_at' => optional($l->archived_at)->toDateTimeString(),
+                'reason' => $notes['alasanArsip'] ?? ($notes['reason'] ?? null),
+            ];
+        });
+
+        return response()->json([
+            'data' => $items,
+            'meta' => [
+                'total' => $paginator->total(),
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'last_page' => $paginator->lastPage(),
+            ]
+        ]);
+    }
+
+    /** Show detail of an archived ST letter. */
+    public function archivesShow(Letter $letter)
+    {
+        $this->ensureST($letter);
+        abort_unless($letter->status === 'archived', 404);
+        $notes = $this->parseNotes($letter->notes);
+        $attachments = $letter->attachments()->get(['id','original_name','file_path','file_type','file_size','created_at'])
+            ->map(function($a){
+                return [
+                    'id'=>$a->id,
+                    'name'=>$a->original_name,
+                    'type'=>$a->file_type,
+                    'size'=>$a->file_size,
+                    'created_at'=>optional($a->created_at)->toDateTimeString(),
+                    'url' => ($a->file_path && Storage::disk('public')->exists($a->file_path)) ? asset('storage/'.$a->file_path) : null,
+                ];
+            });
+
+        return response()->json([
+            'id' => $letter->id,
+            'number' => $letter->letter_number,
+            'subject' => $letter->subject,
+            'date' => optional($letter->letter_date)->toDateString(),
+            'start' => $notes['start_date'] ?? null,
+            'end' => $notes['end_date'] ?? null,
+            'priority' => $letter->priority,
+            'status' => $letter->status,
+            'destination' => $notes['tujuanInternal'][0] ?? ($notes['tujuanExternal'][0] ?? null),
+            'participants' => $notes['participants'] ?? [],
+            'reason' => $notes['alasanArsip'] ?? ($notes['reason'] ?? null),
+            'archived_at' => optional($letter->archived_at)->toDateTimeString(),
+            'attachments' => $attachments,
+        ]);
+    }
+
+    /** Get participants for archived letter (read-only). */
+    public function archivesParticipantsIndex(Letter $letter)
+    {
+        $this->ensureST($letter);
+        abort_unless($letter->status === 'archived', 404);
+        $notes = $this->parseNotes($letter->notes);
+        return response()->json(['participants' => $notes['participants'] ?? []]);
+    }
+
+    /** List attachments for archived letter. */
+    public function archivesAttachmentsIndex(Letter $letter)
+    {
+        $this->ensureST($letter);
+        abort_unless($letter->status === 'archived', 404);
+        $attachments = $letter->attachments()->get(['id','original_name','file_path','file_type','file_size','created_at'])
+            ->map(function($a){
+                return [
+                    'id'=>$a->id,
+                    'name'=>$a->original_name,
+                    'type'=>$a->file_type,
+                    'size'=>$a->file_size,
+                    'created_at'=>optional($a->created_at)->toDateTimeString(),
+                    'url' => ($a->file_path && Storage::disk('public')->exists($a->file_path)) ? asset('storage/'.$a->file_path) : null,
+                ];
+            });
+        return response()->json(['data'=>$attachments]);
+    }
+
+    /** History log for archived letter. */
+    public function archivesHistory(Letter $letter)
+    {
+        $this->ensureST($letter);
+        abort_unless($letter->status === 'archived', 404);
+        $letter->load(['attachments.uploader:id,name']);
+        $logs = [];
+        $logs[] = [ 'time' => optional($letter->created_at)->format('Y-m-d H:i'), 'actor' => 'Sistem', 'action' => 'Membuat surat', 'status' => 'success' ];
+        if ($letter->processed_at) {
+            $logs[] = [ 'time' => $letter->processed_at->format('Y-m-d H:i'), 'actor' => 'Sistem', 'action' => 'Diproses', 'status' => 'info' ];
+        }
+        foreach ($letter->attachments as $a) {
+            $logs[] = [ 'time' => $a->created_at->format('Y-m-d H:i'), 'actor' => $a->uploader->name ?? 'User', 'action' => 'Menambahkan lampiran '.$a->original_name, 'status' => 'info' ];
+        }
+        if ($letter->archived_at) {
+            $logs[] = [ 'time' => $letter->archived_at->format('Y-m-d H:i'), 'actor' => 'Sistem', 'action' => 'Diarsipkan', 'status' => 'success' ];
+        }
+        usort($logs, fn($a,$b)=>strcmp($b['time'],$a['time']));
+        return response()->json(['data'=>$logs]);
+    }
+
+    /** Restore archived letter to active state (default: processed). */
+    public function archivesRestore(Request $request, Letter $letter)
+    {
+        $this->ensureST($letter);
+        if ($letter->status !== 'archived') {
+            return response()->json(['message' => 'Surat tidak dalam status arsip'], 422);
+        }
+        $data = $request->validate([
+            'note' => 'nullable|string|max:1000',
+            'to_status' => 'nullable|in:draft,pending,processed,rejected,closed',
+        ]);
+
+        $toStatus = $data['to_status'] ?? 'processed';
+        $notes = $this->parseNotes($letter->notes);
+        if (!empty($data['note'])) {
+            $existing = isset($notes['catatanInternal']) ? trim((string) $notes['catatanInternal']) : '';
+            $notes['catatanInternal'] = trim($existing . (strlen($existing) ? "\n" : '') . '[' . now()->toDateTimeString() . "] Pulihkan -> {$toStatus}: " . $data['note']);
+            $letter->notes = $notes;
+        }
+
+        $letter->status = $toStatus;
+        $letter->archived_at = null;
+        $letter->save();
+
+        return response()->json(['message' => 'Surat dipulihkan', 'status' => $letter->status]);
     }
 }
