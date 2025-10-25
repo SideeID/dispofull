@@ -16,8 +16,8 @@
                 </svg>
             </button>
             <a class="flex items-center group" href="/">
-                <div class="h-11 w-11 mr-3 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-bold text-sm shadow ring-1 ring-orange-400/30 relative overflow-hidden">
-                    <span class="drop-shadow-sm">SB</span>
+                <div class="h-11 w-11 mr-3 rounded-2xl bg-white dark:bg-gray-700 flex items-center justify-center shadow ring-1 ring-gray-200 dark:ring-gray-600 relative overflow-hidden">
+                    <img src="{{ asset('images/bakrie-logo.png') }}" alt="Logo Bakrie" class="w-9 h-9 object-contain">
                     <span class="absolute inset-0 opacity-0 group-hover:opacity-100 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_60%)] transition"></span>
                 </div>
                 <div class="lg:hidden lg:sidebar-expanded:block 2xl:block">

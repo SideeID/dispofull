@@ -142,7 +142,6 @@
                             <th class="text-left px-5 py-3 font-semibold">Tanggal</th>
                             <th class="text-left px-5 py-3 font-semibold">Prioritas</th>
                             <th class="text-left px-5 py-3 font-semibold">Status</th>
-                            <th class="text-left px-5 py-3 font-semibold">Lampiran</th>
                             <th class="text-left px-5 py-3 font-semibold">Disposisi</th>
                             <th class="px-5 py-3"></th>
                         </tr>
@@ -167,7 +166,6 @@
                                 <td class="px-5 py-3">
                                     <span class="px-2.5 py-1 rounded-full text-[11px] font-medium" x-text="row.status"></span>
                                 </td>
-                                <td class="px-5 py-3 text-center text-gray-600 dark:text-gray-300" x-text="row.attachments"></td>
                                 <td class="px-5 py-3 text-center text-gray-600 dark:text-gray-300" x-text="row.dispositions"></td>
                                 <td class="px-5 py-3 text-right">
                                     <div class="flex items-center justify-end gap-2">
@@ -179,7 +177,7 @@
                                 </td>
                             </tr>
                         </template>
-                        <tr x-show="!letters.length"><td colspan="9" class="px-5 py-6 text-center text-[12px] text-gray-400">Tidak ada data</td></tr>
+                        <tr x-show="!letters.length"><td colspan="8" class="px-5 py-6 text-center text-[12px] text-gray-400">Tidak ada data</td></tr>
                     </tbody>
                 </table>
             </div>

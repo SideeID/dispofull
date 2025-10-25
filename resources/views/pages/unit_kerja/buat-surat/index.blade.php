@@ -491,55 +491,59 @@
                                 data-feather='user-plus' class='w-3.5 h-3.5'></i> Kelola Peserta</button>
                     </div>
                 </div>
-                <div class="p-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3 text-sm">
-                    <div class="flex flex-col gap-1.5 md:col-span-1">
-                        <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Unit Internal
-                            (Tujuan)</label>
-                        <div class="space-y-2">
-                            <template x-for="u in form.tujuanInternal" :key="u">
-                                <div
-                                    class="px-3 py-1.5 rounded bg-gray-50 dark:bg-gray-700 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
-                                    <span x-text="u"></span>
-                                    <button type="button" @click="removeInternal(u)"
-                                        class="text-rose-500 hover:text-rose-400"><i data-feather='x'
-                                            class='w-3 h-3'></i></button>
+                <div class="p-6 grid gap-6 text-sm">
+                    <!-- Row 1: Unit Internal & Alamat Eksternal -->
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Unit Internal (Tujuan)</label>
+                            <div class="space-y-2">
+                                <template x-for="u in form.tujuanInternal" :key="u">
+                                    <div
+                                        class="px-3 py-1.5 rounded bg-gray-50 dark:bg-gray-700 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
+                                        <span x-text="u"></span>
+                                        <button type="button" @click="removeInternal(u)"
+                                            class="text-rose-500 hover:text-rose-400"><i data-feather='x'
+                                                class='w-3 h-3'></i></button>
+                                    </div>
+                                </template>
+                                <div class="flex gap-2">
+                                    <select x-model="internalTemp"
+                                        class="flex-1 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500">
+                                        <option value="">Pilih Unit/Departemen</option>
+                                        <template x-for="dept in availableDepartments" :key="dept.id">
+                                            <option :value="dept.name" x-text="dept.name"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" @click="addInternal()"
+                                        class="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white text-[11px]">Tambah</button>
                                 </div>
-                            </template>
-                            <div class="flex gap-2">
-                                <select x-model="internalTemp"
-                                    class="flex-1 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500">
-                                    <option value="">Pilih Unit/Departemen</option>
-                                    <template x-for="dept in availableDepartments" :key="dept.id">
-                                        <option :value="dept.name" x-text="dept.name"></option>
-                                    </template>
-                                </select>
-                                <button type="button" @click="addInternal()"
-                                    class="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white text-[11px]">Tambah</button>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Alamat Eksternal</label>
+                            <div class="space-y-2">
+                                <template x-for="e in form.tujuanExternal" :key="e">
+                                    <div
+                                        class="px-3 py-1.5 rounded bg-gray-50 dark:bg-gray-700 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
+                                        <span x-text="e"></span>
+                                        <button type="button" @click="removeExternal(e)"
+                                            class="text-rose-500 hover:text-rose-400"><i data-feather='x'
+                                                class='w-3 h-3'></i></button>
+                                    </div>
+                                </template>
+                                <div class="flex gap-2">
+                                    <input type="text" x-model="externalTemp" @keydown.enter.prevent="addExternal()"
+                                        placeholder="Tambah alamat"
+                                        class="flex-1 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" />
+                                    <button type="button" @click="addExternal()"
+                                        class="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white text-[11px]">Tambah</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="flex flex-col gap-1.5 md:col-span-1">
-                        <label class="text-xs font-medium text-gray-600 dark:text-gray-300">Alamat Eksternal</label>
-                        <div class="space-y-2">
-                            <template x-for="e in form.tujuanExternal" :key="e">
-                                <div
-                                    class="px-3 py-1.5 rounded bg-gray-50 dark:bg-gray-700 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
-                                    <span x-text="e"></span>
-                                    <button type="button" @click="removeExternal(e)"
-                                        class="text-rose-500 hover:text-rose-400"><i data-feather='x'
-                                            class='w-3 h-3'></i></button>
-                                </div>
-                            </template>
-                            <div class="flex gap-2">
-                                <input type="text" x-model="externalTemp" @keydown.enter.prevent="addExternal()"
-                                    placeholder="Tambah alamat"
-                                    class="flex-1 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" />
-                                <button type="button" @click="addExternal()"
-                                    class="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white text-[11px]">Tambah</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-1.5 md:col-span-2 lg:grid-cols-1">
+
+                    <!-- Row 2: Statistik Peserta -->
+                    <div class="flex flex-col gap-1.5">
                         <label
                             class="text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-1">Statistik
                             Peserta <span class="text-[10px] text-gray-400 font-normal">(otomatis)</span></label>

@@ -2,8 +2,8 @@
     <!-- Brand Header -->
     <div class="mb-6 text-center">
         <div class="flex flex-col items-center gap-2">
-            <div class="w-16 h-16 rounded-xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 shadow-lg flex items-center justify-center">
-                <span class="text-white font-bold text-xl">UB</span>
+            <div class="w-16 h-16 rounded-xl bg-white dark:bg-gray-700 shadow-lg flex items-center justify-center ring-1 ring-gray-200 dark:ring-gray-600">
+                <img src="{{ asset('images/bakrie-logo.png') }}" alt="Logo Bakrie" class="w-14 h-14 object-contain">
             </div>
             <h1 class="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-600 via-amber-600 to-yellow-600 dark:from-amber-300 dark:via-yellow-200 dark:to-orange-200">
                 Sistem Pengelolaan Surat

@@ -84,10 +84,233 @@ class RektoratController extends Controller
      */
     public function tindakLanjutIndex(Request $request)
     {
-        // Get Surat Tugas letter type
-        $letterType = \App\Models\LetterType::where('code', 'ST')->first();
-        if (!$letterType) {
+        // Log start of execution
+        \Log::info('tindakLanjutIndex: Started', [
+            'user_id' => $request->user()?->id,
+            'filters' => $request->all()
+        ]);
+
+        try {
+            // Get Surat Tugas letter type dynamically
+            $letterType = \App\Models\LetterType::where('code', 'ST')->first();
+            
+            if (!$letterType) {
+                \Log::warning('tindakLanjutIndex: Letter type ST not found');
+                return response()->json([
+                    'data' => [],
+                    'meta' => [
+                        'current_page' => 1,
+                        'last_page' => 1,
+                        'per_page' => 10,
+                        'total' => 0,
+                    ]
+                ]);
+            }
+
+            // Build query with all necessary relations
+            $query = Letter::where('letter_type_id', $letterType->id)
+                ->where('direction', 'outgoing')
+                ->whereNull('archived_at') // Exclude archived letters
+                ->with([
+                    'letterType:id,code,name',
+                    'agenda:id,name,agenda_number',
+                    'fromDepartment:id,name,code',
+                    'toDepartment:id,name,code',
+                    'dispositions' => function ($q) {
+                        $q->with([
+                            'toUser:id,name,position',
+                            'toDepartment:id,name,code',
+                            'fromUser:id,name,position'
+                        ]);
+                    },
+                    'signatures' => function ($q) {
+                        $q->with('user:id,name,position');
+                    },
+                    'attachments:id,letter_id,original_name,file_path,file_type,file_size'
+                ]);
+
+            // Apply search filter
+            if ($request->filled('q')) {
+                $search = trim($request->q);
+                $query->where(function ($q) use ($search) {
+                    $q->where('letter_number', 'like', "%{$search}%")
+                      ->orWhere('subject', 'like', "%{$search}%");
+                });
+            }
+
+            // Apply date filters
+            if ($request->filled('date_from')) {
+                $query->whereDate('letter_date', '>=', $request->date_from);
+            }
+            if ($request->filled('date_to')) {
+                $query->whereDate('letter_date', '<=', $request->date_to);
+            }
+
+            // Apply period filters (task assignment period)
+            if ($request->filled('period_from')) {
+                $query->whereDate('created_at', '>=', $request->period_from);
+            }
+            if ($request->filled('period_to')) {
+                $query->whereDate('created_at', '<=', $request->period_to);
+            }
+
+            // Apply status filter
+            if ($request->filled('status')) {
+                $status = $request->status;
+                if ($status === 'draft') {
+                    $query->where('status', 'draft');
+                } elseif ($status === 'need_signature') {
+                    $query->where('status', 'active')
+                          ->whereDoesntHave('signatures');
+                } elseif ($status === 'signed') {
+                    $query->where('status', 'active')
+                          ->whereHas('signatures');
+                } elseif ($status === 'published') {
+                    $query->where('status', 'published');
+                } elseif ($status === 'archived') {
+                    $query->where('status', 'archived');
+                }
+            }
+
+            // Apply priority filter
+            if ($request->filled('priority')) {
+                $query->where('priority', $request->priority);
+            }
+
+            // Execute query with pagination
+            $perPage = $request->integer('per_page', 10);
+            $letters = $query->orderBy('letter_date', 'desc')
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage);
+
+            \Log::info('tindakLanjutIndex: Query executed', [
+                'total_results' => $letters->total(),
+                'current_page' => $letters->currentPage()
+            ]);
+
+            // Transform data with error handling for each item
+            $data = collect($letters->items())->map(function($letter) {
+                try {
+                    // Ensure all relations are loaded to avoid N+1 query
+                    if (!$letter->relationLoaded('dispositions')) {
+                        $letter->load('dispositions');
+                    }
+                    if (!$letter->relationLoaded('attachments')) {
+                        $letter->load('attachments');
+                    }
+                    if (!$letter->relationLoaded('signatures')) {
+                        $letter->load('signatures');
+                    }
+                    if (!$letter->relationLoaded('agenda')) {
+                        $letter->load('agenda');
+                    }
+
+                    // Parse notes safely to get followup data
+                    $notes = [];
+                    if (is_string($letter->notes)) {
+                        $decoded = @json_decode($letter->notes, true);
+                        $notes = is_array($decoded) ? $decoded : [];
+                    } elseif (is_array($letter->notes)) {
+                        $notes = $letter->notes;
+                    }
+                    $followups = $notes['followups'] ?? [];
+                    
+                    // Calculate completion percentage from followups
+                    $completionPercentage = 0;
+                    if (!empty($followups) && is_array($followups)) {
+                        $latestFollowup = collect($followups)
+                            ->sortByDesc('created_at')
+                            ->first();
+                        $completionPercentage = $latestFollowup['completion_percentage'] ?? 0;
+                    }
+                    
+                    // Calculate recipient statistics safely
+                    $totalRecipients = $letter->dispositions->count();
+                    $completedRecipients = $letter->dispositions->filter(function($d) {
+                        return !is_null($d->completed_at) || $d->status === 'completed';
+                    })->count();
+                    
+                    // Transform letter data
+                    return [
+                        'id' => $letter->id,
+                        'letter_number' => $letter->letter_number ?? '',
+                        'subject' => $letter->subject ?? '',
+                        'perihal' => $letter->subject ?? '',
+                        'letter_date' => optional($letter->letter_date)->format('Y-m-d'),
+                        'created_at' => optional($letter->created_at)->format('Y-m-d H:i:s'),
+                        'priority' => $letter->priority ?? 'normal',
+                        'status' => $letter->status ?? 'draft',
+                        'agenda' => optional($letter->agenda)->id ? [
+                            'id' => $letter->agenda->id,
+                            'name' => $letter->agenda->name ?? $letter->agenda->agenda_number ?? '',
+                        ] : null,
+                        'total_recipients' => $totalRecipients,
+                        'completed_recipients' => $completedRecipients,
+                        'completion_rate' => $totalRecipients > 0 
+                            ? round(($completedRecipients / $totalRecipients) * 100, 1)
+                            : $completionPercentage,
+                        'overall_status' => $this->determineOverallStatus($letter),
+                        'attachments' => $letter->attachments->map(function($a) {
+                            return [
+                                'id' => $a->id ?? null,
+                                'original_name' => $a->original_name ?? '',
+                                'file_path' => $a->file_path ?? '',
+                                'file_type' => $a->file_type ?? '',
+                            ];
+                        })->toArray(),
+                        'signature' => optional($letter->signatures->first())->id ? [
+                            'signer_name' => $letter->signatures->first()->signer_name ?? '',
+                            'signer_title' => $letter->signatures->first()->signer_title ?? '',
+                            'signature_data' => $letter->signatures->first()->signature_data ?? null,
+                            'signature_path' => $letter->signatures->first()->signature_path ?? null,
+                            'signed_at' => optional($letter->signatures->first()->created_at)->format('Y-m-d H:i:s'),
+                        ] : null,
+                        'followups_count' => count($followups),
+                        'latest_followup' => !empty($followups) && is_array($followups) 
+                            ? collect($followups)->sortByDesc('created_at')->first() 
+                            : null,
+                    ];
+                } catch (\Throwable $e) {
+                    // Error handling for individual letter transformation
+                    \Log::error('tindakLanjutIndex: Error transforming letter', [
+                        'letter_id' => $letter->id ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'line' => $e->getLine(),
+                        'file' => $e->getFile()
+                    ]);
+                    return null;
+                }
+            })->filter()->values(); // Filter out null values from failed transformations
+
+            // Log successful completion
+            \Log::info('tindakLanjutIndex: Completed successfully', [
+                'data_count' => $data->count()
+            ]);
+
+            // Return successful response
             return response()->json([
+                'data' => $data,
+                'meta' => [
+                    'current_page' => $letters->currentPage(),
+                    'last_page' => $letters->lastPage(),
+                    'per_page' => $letters->perPage(),
+                    'total' => $letters->total(),
+                ]
+            ]);
+
+        } catch (\Throwable $e) {
+            // Global error handling
+            \Log::error('tindakLanjutIndex: Critical error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            
+            // Return error response
+            return response()->json([
+                'error' => 'Terjadi kesalahan pada server',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error',
                 'data' => [],
                 'meta' => [
                     'current_page' => 1,
@@ -95,141 +318,8 @@ class RektoratController extends Controller
                     'per_page' => 10,
                     'total' => 0,
                 ]
-            ]);
+            ], 500);
         }
-
-        // Surat Tugas untuk tindak lanjut
-        $query = Letter::where('letter_type_id', $letterType->id)
-            ->where('direction', 'outgoing')
-            ->whereNull('archived_at') // Exclude archived
-            ->with([
-                'letterType',
-                'agenda',
-                'dispositions' => function ($q) {
-                    $q->with(['toUser', 'toDepartment']);
-                },
-                'signatures' => function ($q) {
-                    $q->with('user');
-                },
-                'attachments'
-            ]);
-
-        // Search by number or subject
-        if ($request->filled('q')) {
-            $search = $request->q;
-            $query->where(function ($q) use ($search) {
-                $q->where('letter_number', 'like', "%{$search}%")
-                  ->orWhere('subject', 'like', "%{$search}%");
-            });
-        }
-
-        // Filter by date
-        if ($request->filled('date_from')) {
-            $query->whereDate('letter_date', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('letter_date', '<=', $request->date_to);
-        }
-
-        // Filter by period (task assignment period)
-        if ($request->filled('period_from')) {
-            $query->whereDate('created_at', '>=', $request->period_from);
-        }
-        if ($request->filled('period_to')) {
-            $query->whereDate('created_at', '<=', $request->period_to);
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $status = $request->status;
-            if ($status === 'draft') {
-                $query->where('status', 'draft');
-            } elseif ($status === 'need_signature') {
-                $query->where('status', 'active')
-                      ->whereDoesntHave('signatures');
-            } elseif ($status === 'signed') {
-                $query->where('status', 'active')
-                      ->whereHas('signatures');
-            } elseif ($status === 'published') {
-                $query->where('status', 'published');
-            } elseif ($status === 'archived') {
-                $query->where('status', 'archived');
-            }
-        }
-
-        // Filter by priority
-        if ($request->filled('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        $letters = $query->orderBy('letter_date', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->integer('per_page', 10));
-
-        // Add computed fields for monitoring
-        $data = collect($letters->items())->map(function($letter) {
-            // Parse notes to get followup data
-            $notes = is_string($letter->notes) ? json_decode($letter->notes, true) : (is_array($letter->notes) ? $letter->notes : []);
-            $followups = $notes['followups'] ?? [];
-            
-            // Calculate completion percentage from followups
-            $completionPercentage = 0;
-            if (!empty($followups)) {
-                $latestFollowup = collect($followups)->sortByDesc('created_at')->first();
-                $completionPercentage = $latestFollowup['completion_percentage'] ?? 0;
-            }
-            
-            $totalRecipients = $letter->dispositions->count();
-            $completedRecipients = $letter->dispositions->filter(function($d) {
-                return !is_null($d->completed_at) || $d->status === 'completed';
-            })->count();
-            
-            return [
-                'id' => $letter->id,
-                'letter_number' => $letter->letter_number,
-                'subject' => $letter->subject,
-                'perihal' => $letter->subject,
-                'letter_date' => optional($letter->letter_date)->format('Y-m-d'),
-                'created_at' => optional($letter->created_at)->format('Y-m-d H:i:s'),
-                'priority' => $letter->priority,
-                'status' => $letter->status,
-                'agenda' => $letter->agenda ? [
-                    'id' => $letter->agenda->id,
-                    'name' => $letter->agenda->name ?? $letter->agenda->agenda_number,
-                ] : null,
-                'total_recipients' => $totalRecipients,
-                'completed_recipients' => $completedRecipients,
-                'completion_rate' => $totalRecipients > 0 
-                    ? round(($completedRecipients / $totalRecipients) * 100, 1)
-                    : $completionPercentage,
-                'overall_status' => $this->determineOverallStatus($letter),
-                'attachments' => $letter->attachments->map(fn($a) => [
-                    'id' => $a->id,
-                    'original_name' => $a->original_name,
-                    'file_path' => $a->file_path,
-                    'file_type' => $a->file_type,
-                ]),
-                'signature' => $letter->signatures->first() ? [
-                    'signer_name' => $letter->signatures->first()->signer_name,
-                    'signer_title' => $letter->signatures->first()->signer_title,
-                    'signature_data' => $letter->signatures->first()->signature_data,
-                    'signature_path' => $letter->signatures->first()->signature_path,
-                    'signed_at' => optional($letter->signatures->first()->created_at)->format('Y-m-d H:i:s'),
-                ] : null,
-                'followups_count' => count($followups),
-                'latest_followup' => !empty($followups) ? collect($followups)->sortByDesc('created_at')->first() : null,
-            ];
-        });
-
-        return response()->json([
-            'data' => $data,
-            'meta' => [
-                'current_page' => $letters->currentPage(),
-                'last_page' => $letters->lastPage(),
-                'per_page' => $letters->perPage(),
-                'total' => $letters->total(),
-            ]
-        ]);
     }
 
     /**
@@ -237,7 +327,13 @@ class RektoratController extends Controller
      */
     public function tindakLanjutShow($id)
     {
-        $letter = Letter::where('letter_type_id', 3) // 3 = Surat Tugas
+        // Get Surat Tugas letter type
+        $letterType = \App\Models\LetterType::where('code', 'ST')->first();
+        if (!$letterType) {
+            abort(404, 'Letter type not found');
+        }
+
+        $letter = Letter::where('letter_type_id', $letterType->id)
             ->with([
                 'letterType',
                 'dispositions' => function ($q) {
