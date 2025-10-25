@@ -31,8 +31,33 @@
 							</div>
 						</div>
 						<div>
-							<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Tujuan / Tim</label>
-							<input type="text" x-model="createForm.notes.destination" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500 text-gray-700 dark:text-gray-100" placeholder="Nama tim / unit" />
+							<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Ditujukan Kepada (User/Pegawai)</label>
+							<select x-model="createForm.selected_user" @change="addSelectedUser()" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500 text-gray-700 dark:text-gray-100">
+								<option value="">-- Pilih Pegawai --</option>
+								<template x-for="user in availableUsers" :key="user.id">
+									<option :value="JSON.stringify(user)" x-text="user.name + ' (' + (user.position || user.department || '-') + ')'"></option>
+								</template>
+							</select>
+							<!-- Selected Users List -->
+							<template x-if="createForm.notes.selectedUsers && createForm.notes.selectedUsers.length > 0">
+								<div class="mt-3 space-y-2">
+									<div class="text-[11px] font-medium text-gray-600 dark:text-gray-300">Pegawai yang Dipilih:</div>
+									<template x-for="(user, idx) in createForm.notes.selectedUsers" :key="idx">
+										<div class="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+											<div class="flex items-center gap-2 flex-1">
+												<i data-feather="user" class="w-3.5 h-3.5 text-indigo-500"></i>
+												<div class="text-xs">
+													<div class="font-medium text-gray-800 dark:text-gray-100" x-text="user.name"></div>
+													<div class="text-[10px] text-gray-500 dark:text-gray-400" x-text="user.position || user.department || '-'"></div>
+												</div>
+											</div>
+											<button type="button" @click="createForm.notes.selectedUsers.splice(idx, 1); refreshDestination();" class="text-rose-500 hover:text-rose-700 text-xs">
+												<i data-feather="x" class="w-4 h-4"></i>
+											</button>
+										</div>
+									</template>
+								</div>
+							</template>
 						</div>
 						<div>
 							<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Prioritas</label>
@@ -71,12 +96,25 @@
 						</div>
 						<div class="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-4">
 							<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Lampiran</div>
-							<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-								<li class="flex items-center justify-between gap-3 p-2 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600"><span>tor_kegiatan.pdf</span><button class="text-rose-500 hover:underline">Hapus</button></li>
-							</ul>
-							<div class="mt-3">
+							<template x-if="createForm.attachments && createForm.attachments.length > 0">
+								<ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300 mb-3">
+									<template x-for="(file, idx) in createForm.attachments" :key="idx">
+										<li class="flex items-center justify-between gap-3 p-2 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600">
+											<span class="flex items-center gap-2">
+												<i data-feather="paperclip" class="w-3 h-3 text-violet-500"></i>
+												<span x-text="file.name"></span>
+											</span>
+											<button type="button" @click="createForm.attachments.splice(idx, 1); refreshIcons();" class="text-rose-500 hover:underline">Hapus</button>
+										</li>
+									</template>
+								</ul>
+							</template>
+							<template x-if="!createForm.attachments || createForm.attachments.length === 0">
+								<p class="text-xs text-gray-400 dark:text-gray-500 mb-3 italic">Belum ada lampiran</p>
+							</template>
+							<div>
 								<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Tambah Lampiran</label>
-								<input type="file" class="block w-full text-[11px] text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 dark:file:bg-amber-500/10 dark:file:text-amber-300" />
+								<input type="file" x-ref="attachmentInput" @change="handleFileUpload($event)" class="block w-full text-[11px] text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 dark:file:bg-amber-500/10 dark:file:text-amber-300" />
 								<p class="mt-1 text-[10px] text-gray-400">PDF / Gambar (max 5MB)</p>
 							</div>
 						</div>

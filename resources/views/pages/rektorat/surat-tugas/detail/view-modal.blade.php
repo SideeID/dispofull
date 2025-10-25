@@ -87,7 +87,10 @@
 					</div>
 				</div>
 			</div>
-			<div class="flex items-center justify-end pt-2">
+			<div class="flex items-center justify-between pt-2">
+				<button type="button" @click="closeAll(); open('showPreview', selected)" class="px-4 py-2 rounded-lg text-sm bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center gap-2">
+					<i data-feather="eye" class="w-4 h-4"></i> Preview Surat
+				</button>
 				<button type="button" @click="closeAll()" class="px-4 py-2 rounded-lg text-sm bg-amber-600 hover:bg-amber-500 text-white font-medium flex items-center gap-2">Tutup</button>
 			</div>
 		</div>

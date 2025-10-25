@@ -9,12 +9,65 @@
 		@keydown.escape.window="closeAll()"
 	>
 		@php
-			// Placeholder data untuk arsip surat tugas (hanya status archived)
-			$archives = [
-				['number'=>'ST-039/REK/2025','subject'=>'Evaluasi Kurikulum Semester','destination'=>'WR I','date'=>'2025-09-28','start'=>'2025-10-20','end'=>'2025-10-21','priority'=>'low','status'=>'archived','participants'=>8,'files'=>2,'archived_at'=>'2025-10-02 10:30','reason'=>'Selesai dilaksanakan'],
-				['number'=>'ST-031/REK/2025','subject'=>'Rapat Koordinasi Akreditasi','destination'=>'Sekretariat','date'=>'2025-09-20','start'=>'2025-09-22','end'=>'2025-09-22','priority'=>'normal','status'=>'archived','participants'=>6,'files'=>3,'archived_at'=>'2025-09-30 14:12','reason'=>'Ditutup otomatis (periode berakhir)'],
-				['number'=>'ST-024/REK/2025','subject'=>'Monitoring Penelitian Hibah','destination'=>'Direktorat Riset','date'=>'2025-09-15','start'=>'2025-09-18','end'=>'2025-09-19','priority'=>'high','status'=>'archived','participants'=>5,'files'=>1,'archived_at'=>'2025-09-25 09:05','reason'=>'Kegiatan selesai & laporan diterima'],
-			];
+			// Ambil surat tugas yang sudah diarsipkan (archived_at tidak null)
+			$archives = \App\Models\Letter::query()
+				->where('letter_type_id', 3) // Surat Tugas
+				->whereNotNull('archived_at')
+				->with(['letterType', 'fromDepartment', 'toDepartment', 'dispositions', 'attachments', 'signatures'])
+				->latest('archived_at')
+				->limit(50)
+				->get()
+				->map(function($letter) {
+					$hasSignature = $letter->signatures->isNotEmpty();
+					
+					// Parse metadata dari notes
+					$metadata = $letter->metadata ?? [];
+					if (is_string($letter->notes)) {
+						$decoded = json_decode($letter->notes, true);
+						if (is_string($decoded)) {
+							$metadata = json_decode($decoded, true) ?? [];
+						} else {
+							$metadata = $decoded ?? [];
+						}
+					}
+					
+					return [
+						'id' => $letter->id,
+						'number' => $letter->letter_number,
+						'subject' => $letter->subject,
+						'perihal' => $letter->subject,
+						'destination' => $metadata['tujuanInternal'][0] ?? ($letter->toDepartment->name ?? 'N/A'),
+						'date' => $letter->letter_date?->format('Y-m-d') ?? '',
+						'tanggal' => $letter->letter_date?->format('Y-m-d') ?? '',
+						'start' => $metadata['start_date'] ?? '',
+						'end' => $metadata['end_date'] ?? '',
+						'priority' => $letter->priority,
+						'status' => 'archived',
+						'participants' => count($metadata['participants'] ?? []),
+						'files' => $letter->attachments->count(),
+						'archived_at' => $letter->archived_at?->format('Y-m-d H:i') ?? '',
+						'reason' => $metadata['archive_reason'] ?? 'Diarsipkan',
+						// Data lengkap untuk preview
+						'konten' => $letter->content,
+						'tujuanInternal' => $metadata['tujuanInternal'] ?? [],
+						'tujuanExternal' => $metadata['tujuanExternal'] ?? [],
+						'signature' => $hasSignature ? [
+							'signer_name' => $letter->signatures->first()->signer_name,
+							'signer_title' => $letter->signatures->first()->signer_title,
+							'signature_data' => $letter->signatures->first()->signature_data,
+							'signature_path' => $letter->signatures->first()->signature_path,
+							'signed_at' => $letter->signatures->first()->signed_at,
+						] : null,
+						'attachments' => $letter->attachments->map(fn($a) => [
+							'id' => $a->id,
+							'filename' => $a->original_name ?? $a->file_name,
+							'size' => $a->file_size,
+							'type' => $a->file_type,
+						])->toArray(),
+					];
+				})
+				->toArray();
+			
 			$priorityColors = [
 				'low' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
 				'normal' => 'bg-slate-500/10 text-slate-600 dark:text-slate-300',

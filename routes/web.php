@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DataFeedController;
+use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RektoratController;
 use App\Http\Controllers\RektorSuratTugasController;
@@ -32,6 +32,25 @@ Route::middleware(['auth:sanctum', 'verified', 'role:admin'])->group(function ()
     Route::get('/departemen', [AdminController::class, 'departemen'])->name('dashboard.departemen');
     Route::get('/jenis-surat', [AdminController::class, 'jenisSurat'])->name('dashboard.jenis-surat');
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->name('dashboard.monitoring');
+    
+    // Agenda Surat
+    Route::get('/agenda', [AgendaController::class, 'index'])->name('agenda.index');
+    Route::prefix('agenda')
+        ->name('agenda.')
+        ->group(function () {
+            Route::get('/list', [AgendaController::class, 'getAgendas'])->name('list');
+            Route::get('/filter-options', [AgendaController::class, 'getFilterOptions'])->name('filter-options');
+            Route::post('/', [AgendaController::class, 'store'])->name('store');
+            Route::get('/{id}', [AgendaController::class, 'show'])->name('show');
+            Route::put('/{id}', [AgendaController::class, 'update'])->name('update');
+            Route::delete('/{id}', [AgendaController::class, 'destroy'])->name('destroy');
+            Route::post('/{id}/publish', [AgendaController::class, 'publish'])->name('publish');
+            Route::post('/{id}/archive', [AgendaController::class, 'archive'])->name('archive');
+            Route::get('/{id}/export-pdf', [AgendaController::class, 'exportPdf'])->name('export-pdf');
+            Route::get('/{id}/preview-pdf', [AgendaController::class, 'previewPdf'])->name('preview-pdf');
+            Route::post('/auto-generate', [AgendaController::class, 'autoGenerate'])->name('auto-generate');
+        });
+    
     Route::get('/admin/departments', [AdminController::class, 'departmentsIndex'])->name('admin.departments.index');
     Route::prefix('admin/users')
         ->name('admin.users.')
@@ -75,6 +94,11 @@ Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function
     Route::prefix('rektor/api')
         ->name('rektor.api.')
         ->group(function () {
+            // Tindak Lanjut Surat Tugas
+            Route::get('/tindak-lanjut', [RektoratController::class, 'tindakLanjutIndex'])->name('tindak_lanjut.index');
+            Route::get('/tindak-lanjut/{id}', [RektoratController::class, 'tindakLanjutShow'])->name('tindak_lanjut.show');
+            Route::get('/tindak-lanjut/{letterId}/responses/{recipientId}/{recipientType}', [RektoratController::class, 'tindakLanjutResponses'])->name('tindak_lanjut.responses');
+
             // Surat Tugas (ST)
             Route::get('/assignments', [RektorSuratTugasController::class, 'apiIndex'])->name('assignments.index');
             Route::post('/assignments', [RektorSuratTugasController::class, 'store'])->name('assignments.store');
@@ -85,8 +109,16 @@ Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function
             Route::get('/assignments/{letter}/history', [RektorSuratTugasController::class, 'history'])->name('assignments.history');
             Route::post('/assignments/{letter}/confirm', [RektorSuratTugasController::class, 'confirm'])->name('assignments.confirm');
             Route::patch('/assignments/{letter}/status', [RektorSuratTugasController::class, 'updateStatus'])->name('assignments.status.update');
+            Route::post('/assignments/{letter}/followups', [RektorSuratTugasController::class, 'storeFollowup'])->name('assignments.followups.store');
+            Route::get('/assignments/{letter}/followups', [RektorSuratTugasController::class, 'getFollowups'])->name('assignments.followups.index');
             Route::get('/incoming-letters', [RektoratController::class, 'incomingIndex'])->name('incoming.index');
+            // Routes tanpa parameter harus di atas routes dengan {letter}
+            Route::get('/incoming-letters/recipients/dispositions', [RektoratController::class, 'incomingDispositionRecipients'])->name('incoming.recipients');
+            Route::get('/departments', [RektoratController::class, 'getDepartments'])->name('departments.index');
+            // Routes dengan {letter} parameter
             Route::get('/incoming-letters/{letter}', [RektoratController::class, 'incomingShow'])->name('incoming.show');
+            Route::post('/incoming-letters/{letter}/archive', [RektoratController::class, 'incomingArchive'])->name('incoming.archive');
+            Route::post('/incoming-letters/{letter}/unarchive', [RektoratController::class, 'incomingUnarchive'])->name('incoming.unarchive');
             Route::post('/incoming-letters/{letter}/mark-received', [RektoratController::class, 'incomingMarkReceived'])->name('incoming.mark_received');
             Route::get('/incoming-letters/{letter}/dispositions', [RektoratController::class, 'incomingDispositionsIndex'])->name('incoming.dispositions.index');
             Route::post('/incoming-letters/{letter}/dispositions', [RektoratController::class, 'incomingDispositionsStore'])->name('incoming.dispositions.store');
@@ -95,7 +127,6 @@ Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function
             Route::get('/incoming-letters/{letter}/history', [RektoratController::class, 'incomingHistory'])->name('incoming.history');
             Route::get('/incoming-letters/{letter}/signatures', [RektoratController::class, 'incomingSignaturesIndex'])->name('incoming.signatures.index');
             Route::post('/incoming-letters/{letter}/signatures', [RektoratController::class, 'incomingSignaturesStore'])->name('incoming.signatures.store');
-            Route::get('/incoming-letters/recipients/dispositions', [RektoratController::class, 'incomingDispositionRecipients'])->name('incoming.recipients');
             // History Disposisi (role rektorat)
             Route::get('/history/dispositions', [RektoratController::class, 'historyDispositionsIndex'])->name('history.dispositions.index');
             Route::get('/history/dispositions/{disposition}', [RektoratController::class, 'historyDispositionsShow'])->name('history.dispositions.show');
@@ -110,6 +141,10 @@ Route::middleware(['auth:sanctum', 'verified', 'role:rektorat'])->group(function
             Route::get('/archives/assignments/{letter}/attachments', [RektorSuratTugasController::class, 'archivesAttachmentsIndex'])->name('archives.assignments.attachments');
             Route::get('/archives/assignments/{letter}/history', [RektorSuratTugasController::class, 'archivesHistory'])->name('archives.assignments.history');
             Route::post('/archives/assignments/{letter}/restore', [RektorSuratTugasController::class, 'archivesRestore'])->name('archives.assignments.restore');
+            // Departments - Shared endpoint
+            Route::get('/departments', [RektoratController::class, 'departmentsIndex'])->name('departments');
+            // Users - Shared endpoint
+            Route::get('/users', [RektoratController::class, 'usersIndex'])->name('users');
         });
 });
 
@@ -121,10 +156,21 @@ Route::middleware(['auth:sanctum', 'verified', 'role:unit_kerja'])->group(functi
     Route::get('unit-kerja/buat-surat', [UnitKerjaController::class, 'buatSurat'])->name('unit_kerja.buat.surat');
     Route::get('unit-kerja/surat-masuk', [UnitKerjaController::class, 'suratMasuk'])->name('unit_kerja.surat.masuk');
     Route::get('unit-kerja/surat-masuk/export', [UnitKerjaController::class, 'exportIncoming'])->name('unit_kerja.surat_masuk.export');
+    Route::get('unit-kerja/inbox-disposisi', [UnitKerjaController::class, 'inboxDisposisi'])->name('unit_kerja.inbox.disposisi');
 
     Route::prefix('unit-kerja/api')
         ->name('unit_kerja.api.')
         ->group(function () {
+            // Dashboard APIs
+            Route::get('/dashboard/stats', [UnitKerjaController::class, 'dashboardStats'])->name('dashboard.stats');
+            Route::get('/dashboard/recent-incoming', [UnitKerjaController::class, 'dashboardRecentIncoming'])->name('dashboard.recent_incoming');
+            Route::get('/dashboard/draft-outgoing', [UnitKerjaController::class, 'dashboardDraftOutgoing'])->name('dashboard.draft_outgoing');
+            Route::get('/dashboard/archived-assignments', [UnitKerjaController::class, 'dashboardArchivedAssignments'])->name('dashboard.archived_assignments');
+            Route::get('/dashboard/signature-queue', [UnitKerjaController::class, 'dashboardSignatureQueue'])->name('dashboard.signature_queue');
+            Route::get('/dashboard/chart-monthly', [UnitKerjaController::class, 'dashboardChartMonthly'])->name('dashboard.chart_monthly');
+            Route::get('/dashboard/chart-disposition-status', [UnitKerjaController::class, 'dashboardChartDispositionStatus'])->name('dashboard.chart_disposition_status');
+            Route::get('/dashboard/pending-notifications', [UnitKerjaController::class, 'dashboardPendingNotifications'])->name('dashboard.pending_notifications');
+
             Route::get('/letter-types', [UnitKerjaController::class, 'letterTypes'])->name('letter_types');
             Route::get('/signers', [UnitKerjaController::class, 'signers'])->name('signers');
             Route::get('/penandatangan', [UnitKerjaController::class, 'penandatangan'])->name('penandatangan');
@@ -137,6 +183,25 @@ Route::middleware(['auth:sanctum', 'verified', 'role:unit_kerja'])->group(functi
             Route::post('/letters/{letter}/submit', [UnitKerjaController::class, 'submitForSignature'])->name('letters.submit');
             Route::post('/letters/submit', [UnitKerjaController::class, 'submitDirect'])->name('letters.submit.direct');
             Route::post('/letters/{letter}/archive', [UnitKerjaController::class, 'archiveLetter'])->name('letters.archive');
+            Route::post('/letters/{letter}/restore', [UnitKerjaController::class, 'restoreLetter'])->name('letters.restore');
             Route::get('/letters/outgoing/search', [UnitKerjaController::class, 'outgoingSearch'])->name('letters.outgoing.search');
+            
+            // Disposisi Routes untuk Unit Kerja (penerima)
+            Route::get('/dispositions/inbox', [UnitKerjaController::class, 'dispositionsInbox'])->name('dispositions.inbox');
+            Route::get('/dispositions/{disposition}', [UnitKerjaController::class, 'dispositionShow'])->name('dispositions.show');
+            Route::post('/dispositions/{disposition}/read', [UnitKerjaController::class, 'dispositionMarkRead'])->name('dispositions.read');
+            Route::post('/dispositions/{disposition}/response', [UnitKerjaController::class, 'dispositionUpdateResponse'])->name('dispositions.response');
+            Route::post('/dispositions/{disposition}/complete', [UnitKerjaController::class, 'dispositionComplete'])->name('dispositions.complete');
+            // Departments - Shared endpoint
+            Route::get('/departments', [UnitKerjaController::class, 'departmentsIndex'])->name('departments');
+            // Users - Shared endpoint
+            Route::get('/users', [UnitKerjaController::class, 'usersIndex'])->name('users');
         });
+});
+
+// Template API Routes
+Route::middleware(['auth'])->prefix('unit-kerja')->group(function() {
+    Route::get('/api/templates', [UnitKerjaController::class, 'getTemplates']);
+    Route::get('/api/templates/{id}', [UnitKerjaController::class, 'getTemplateContent']);
+    Route::post('/api/templates/custom', [UnitKerjaController::class, 'saveCustomTemplate']);
 });

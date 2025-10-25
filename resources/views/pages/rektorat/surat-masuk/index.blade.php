@@ -5,6 +5,7 @@
         showAttachment: false,
         showSign: false,
         showHistory: false,
+        showPreview: false,
         selected: null,
         open(modal, row = null) {
             // Force re-mount so inner x-data gets fresh selected and init() re-runs
@@ -16,7 +17,8 @@
             this.showDisposition = false;
             this.showAttachment = false;
             this.showSign = false;
-            this.showHistory = false; },
+            this.showHistory = false;
+            this.showPreview = false; },
     }"
     @keydown.escape.window="closeAll()"
     @open-modal="open($event.detail.modal, $event.detail.row)"
@@ -172,6 +174,7 @@
                                         <button @click="$dispatch('open-modal', { modal: 'showView', row })" class="text-amber-600 dark:text-amber-400 hover:underline text-xs font-medium">Detail</button>
                                         <button @click="$dispatch('open-modal', { modal: 'showDisposition', row })" class="text-indigo-600 dark:text-indigo-400 hover:underline text-xs font-medium">Disposisi</button>
                                         <button @click="$dispatch('open-modal', { modal: 'showAttachment', row })" class="text-slate-600 dark:text-slate-300 hover:underline text-xs font-medium">Lampiran</button>
+                                        <button x-show="row.letter_type?.code === 'ST'" @click="archiveLetter(row)" class="text-green-600 dark:text-green-400 hover:underline text-xs font-medium">Arsipkan</button>
                                     </div>
                                 </td>
                             </tr>
@@ -208,6 +211,7 @@
         @include('pages.rektorat.surat-masuk.detail.attachment-modal')
         @include('pages.rektorat.surat-masuk.detail.sign-modal')
         @include('pages.rektorat.surat-masuk.detail.history-modal')
+        @include('pages.rektorat.surat-masuk.detail.preview-modal')
 
         <div class="mt-10 text-center text-[11px] text-gray-400 dark:text-gray-600">Sistem Pengelolaan Surat ·
             Universitas Bakrie</div>
@@ -243,6 +247,32 @@
                             this.$nextTick(() => { if (window.feather) feather.replace(); });
                         } catch (e) { console.error(e); }
                         finally { this.loading = false; }
+                    },
+                    async archiveLetter(letter) {
+                        if (!confirm(`Arsipkan surat "${letter.subject}"?\n\nSurat yang diarsipkan akan dipindahkan ke halaman arsip.`)) return;
+                        try {
+                            console.log('Archiving letter:', letter.id);
+                            const res = await fetch(`/rektor/api/incoming-letters/${letter.id}/archive`, {
+                                method: 'POST',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                }
+                            });
+                            console.log('Response status:', res.status);
+                            const data = await res.json();
+                            console.log('Response data:', data);
+                            if (!res.ok) {
+                                alert(data.message || 'Gagal mengarsipkan surat. Silakan coba lagi.');
+                                return;
+                            }
+                            alert('Surat berhasil diarsipkan!');
+                            await this.fetch(); // Refresh list
+                        } catch (e) {
+                            console.error('Archive error:', e);
+                            alert('Gagal mengarsipkan surat. Silakan coba lagi.');
+                        }
                     }
                 }));
             });

@@ -1,22 +1,114 @@
 <x-app-layout>
 	<div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-7xl mx-auto"
 		 x-data="{
-			showView:false, showParticipants:false, showAttachments:false, showSign:false, showHistory:false, showAcknowledge:false,
+			showView:false, showParticipants:false, showAttachments:false, showSign:false, showHistory:false, showAcknowledge:false, showPreview:false,
 			selected:null,
-			open(modal,row=null){ this.selected=row; this[modal]=true },
-			closeAll(){ this.showView=false; this.showParticipants=false; this.showAttachments=false; this.showSign=false; this.showHistory=false; this.showAcknowledge=false; },
+			availableDepartments: [],
+			availableUsers: [],
+			async fetchDepartments(){
+				try{
+					const res = await fetch('/rektor/api/departments', { headers: { 'Accept':'application/json' } });
+					const json = await res.json();
+					if(json.success) this.availableDepartments = json.data ?? [];
+				}catch(e){ console.error('Failed to load departments:', e); }
+			},
+			async fetchUsers(){
+				try{
+					const res = await fetch('/rektor/api/users', { headers: { 'Accept':'application/json' } });
+					const json = await res.json();
+					if(json.success) this.availableUsers = json.data ?? [];
+				}catch(e){ console.error('Failed to load users:', e); }
+			},
+			open(modal,row=null){ 
+				this.selected=row; 
+				console.log('Opening modal:', modal, 'with data:', row);
+				this[modal]=true;
+			},
+			closeAll(){ this.showView=false; this.showParticipants=false; this.showAttachments=false; this.showSign=false; this.showHistory=false; this.showAcknowledge=false; this.showPreview=false; },
 		 }"
+		 x-init="fetchDepartments(); fetchUsers();"
 		 @keydown.escape.window="closeAll()"
 	>
 		@php
-			// Placeholder data inbox surat tugas (akan diganti query Eloquent sesuai kebutuhan)
-			$inboxAssignments = [
-				['number'=>'ST-055/REK/2025','subject'=>'Supervisi Kegiatan Magang','origin'=>'Wakil Rektor I','date'=>'2025-10-02','start'=>'2025-10-07','end'=>'2025-10-08','priority'=>'high','status'=>'pending_ack','participants'=>4,'files'=>2],
-				['number'=>'ST-052/REK/2025','subject'=>'Monitoring Penelitian Hibah','origin'=>'Direktorat Riset','date'=>'2025-10-01','start'=>'2025-10-10','end'=>'2025-10-12','priority'=>'normal','status'=>'need_signature','participants'=>5,'files'=>1],
-				['number'=>'ST-047/REK/2025','subject'=>'Rapat Koordinasi Akreditasi','origin'=>'Sekretariat','date'=>'2025-09-30','start'=>'2025-10-05','end'=>'2025-10-05','priority'=>'urgent','status'=>'acknowledged','participants'=>6,'files'=>3],
-				['number'=>'ST-044/REK/2025','subject'=>'Kunjungan Mitra Luar Negeri','origin'=>'Kantor Kerjasama','date'=>'2025-09-29','start'=>'2025-10-15','end'=>'2025-10-18','priority'=>'high','status'=>'signed','participants'=>3,'files'=>0],
-				['number'=>'ST-039/REK/2025','subject'=>'Evaluasi Kurikulum Semester','origin'=>'WR I','date'=>'2025-09-28','start'=>'2025-10-20','end'=>'2025-10-21','priority'=>'low','status'=>'published','participants'=>8,'files'=>1],
-			];
+			// Ambil surat tugas yang ditujukan ke user saat ini (inbox)
+			$user = auth()->user();
+			$inboxAssignments = \App\Models\Letter::query()
+				->where('letter_type_id', 3) // Surat Tugas
+				->where('direction', 'outgoing')
+				->whereNull('archived_at')
+				->whereHas('dispositions', function($q) use ($user) {
+					$q->where('to_user_id', $user->id)
+					  ->orWhere(function($q) use ($user) {
+						  $q->where('to_department_id', $user->department_id);
+					  });
+				})
+				->with(['letterType', 'fromDepartment', 'toDepartment', 'dispositions', 'attachments', 'signatures'])
+				->latest('letter_date')
+				->latest()
+				->limit(50)
+				->get()
+				->map(function($letter) {
+					$dispositions = $letter->dispositions;
+					$hasSignature = $letter->signatures->isNotEmpty();
+					
+					// Parse metadata dari notes
+					$metadata = $letter->metadata ?? [];
+					if (is_string($letter->notes)) {
+						$decoded = json_decode($letter->notes, true);
+						if (is_string($decoded)) {
+							$metadata = json_decode($decoded, true) ?? [];
+						} else {
+							$metadata = $decoded ?? [];
+						}
+					}
+					
+					// Determine status based on signatures and dispositions
+					$status = 'pending_ack';
+					if ($hasSignature && $letter->status === 'published') {
+						$status = 'published';
+					} elseif ($hasSignature) {
+						$status = 'signed';
+					} elseif ($dispositions->where('read_at', '!=', null)->count() > 0) {
+						$status = 'acknowledged';
+					} elseif (!$hasSignature && $letter->status === 'active') {
+						$status = 'need_signature';
+					}
+					
+					return [
+						'id' => $letter->id,
+						'number' => $letter->letter_number,
+						'subject' => $letter->subject,
+						'perihal' => $letter->subject,
+						'origin' => $letter->sender_name ?: ($letter->fromDepartment->name ?? 'N/A'),
+						'date' => $letter->letter_date?->format('Y-m-d') ?? '',
+						'tanggal' => $letter->letter_date?->format('Y-m-d') ?? '',
+						'start' => $metadata['start_date'] ?? '',
+						'end' => $metadata['end_date'] ?? '',
+						'priority' => $letter->priority,
+						'status' => $status,
+						'participants' => count($metadata['participants'] ?? []),
+						'files' => $letter->attachments->count(),
+						// Data lengkap untuk preview
+						'konten' => $letter->content,
+						'tujuanInternal' => $metadata['tujuanInternal'] ?? [],
+						'tujuanExternal' => $metadata['tujuanExternal'] ?? [],
+						'signature' => $hasSignature ? [
+							'signer_name' => $letter->signatures->first()->signer_name,
+							'signer_title' => $letter->signatures->first()->signer_title,
+							'signature_data' => $letter->signatures->first()->signature_data,
+							'signature_path' => $letter->signatures->first()->signature_path,
+							'signed_at' => $letter->signatures->first()->signed_at,
+						] : null,
+						'attachments' => $letter->attachments->map(fn($a) => [
+							'id' => $a->id,
+							'filename' => $a->original_name ?? $a->file_name,
+							'size' => $a->file_size,
+							'type' => $a->file_type,
+						])->toArray(),
+					];
+				})
+				->toArray();
+			
 			$priorityColors = [
 				'low' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
 				'normal' => 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
@@ -167,6 +259,7 @@
 		</div>
 
 		@include('pages.rektorat.inbox-surat-tugas.detail.view-modal')
+		@include('pages.rektorat.inbox-surat-tugas.detail.preview-modal')
 		@include('pages.rektorat.inbox-surat-tugas.detail.participants-modal')
 		@include('pages.rektorat.inbox-surat-tugas.detail.attachment-modal')
 		@include('pages.rektorat.inbox-surat-tugas.detail.sign-modal')

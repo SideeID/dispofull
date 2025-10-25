@@ -33,21 +33,20 @@
 						<div class="text-[11px] uppercase font-semibold tracking-wide text-gray-400 dark:text-gray-500 mb-2">Tambah Peserta</div>
 						<form class="space-y-4" @submit.prevent="addParticipant()">
 							<div>
-								<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Nama</label>
-								<input type="text" x-model="newParticipant.nama" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" placeholder="Nama Peserta" />
+								<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Nama Peserta</label>
+								<select x-model="newParticipant.user_id" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500">
+									<option value="">Pilih Peserta</option>
+									<template x-for="user in availableUsers" :key="user.id">
+										<option :value="user.id" x-text="user.name"></option>
+									</template>
+								</select>
 							</div>
-							<div class="grid grid-cols-2 gap-4">
-								<div>
-									<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Peran</label>
-									<select x-model="newParticipant.jabatan" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500">
-										<option value="anggota">Anggota</option>
-										<option value="ketua">Ketua</option>
-									</select>
-								</div>
-								<div>
-									<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Unit</label>
-									<input type="text" x-model="newParticipant.status" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" placeholder="Unit / Status" />
-								</div>
+							<div>
+								<label class="block text-[11px] font-medium mb-1 text-gray-600 dark:text-gray-300">Peran</label>
+								<select x-model="newParticipant.jabatan" class="w-full rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500">
+									<option value="anggota">Anggota</option>
+									<option value="ketua">Ketua</option>
+								</select>
 							</div>
 							<div class="flex items-center justify-end">
 								<button type="submit" class="px-4 py-2 rounded-lg text-xs bg-amber-600 hover:bg-amber-500 text-white font-medium">Tambah</button>

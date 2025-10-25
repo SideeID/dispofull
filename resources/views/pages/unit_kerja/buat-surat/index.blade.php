@@ -9,6 +9,7 @@
         draftId: null,
         letterTypes: @js($letterTypes ?? []),
         userDepartmentId: @js($userDeptId ?? null),
+        availableDepartments: [],
         signers: [],
         signerSearch: '',
         numberingPreview: null,
@@ -60,6 +61,13 @@
                 const j = await r.json();
                 this.signers = j.success ? j.data : [];
             } catch (e) {}
+        },
+        async fetchDepartments() {
+            try {
+                const r = await fetch('/unit-kerja/api/departments');
+                const j = await r.json();
+                if (j.success) this.availableDepartments = j.data || [];
+            } catch (e) { console.error('Failed to load departments:', e); }
         },
         searchSigners() { this.debounce('signerSearch', () => this.fetchSigners(this.signerSearch), 400); },
         addInternal() {
@@ -245,6 +253,7 @@
                 }
             }
             this.fetchSigners();
+            this.fetchDepartments();
             this.$watch('form.nomor.prefix', () => this.debounce('preview', () => this.previewNumber(), 350));
             this.$watch('form.nomor.suffix', () => this.debounce('preview', () => this.previewNumber(), 350));
             if (window.feather) feather.replace();
@@ -288,6 +297,40 @@
             } catch (e) {
                 console.error('CKEditor 4 init error', e);
             }
+        },
+        selectTemplate(template) {
+            // Langsung set konten dari template tanpa fetch
+            if (this.editor) {
+                const kontenTemplate = this.formatTemplateContent(template.isi);
+                this.editor.setData(kontenTemplate);
+                this.form.konten = kontenTemplate;
+                this.markChanged();
+            }
+            // Tutup modal
+            this.closeAll();
+            // Tampilkan notifikasi
+            this.notify('Template berhasil diterapkan');
+        },
+        formatTemplateContent(isi) {
+            // Format konten template menjadi HTML yang lebih baik
+            // Pisahkan berdasarkan baris kosong (paragraf)
+            let paragraphs = isi.split('\n\n');
+            let html = '';
+            
+            paragraphs.forEach(para => {
+                para = para.trim();
+                if (para === '') return;
+                
+                // Highlight text dalam kurung siku
+                para = para.replace(/\[([^\]]+)\]/g, '<strong>[$1]</strong>');
+                
+                // Replace newline tunggal dengan <br>
+                para = para.replace(/\n/g, '<br>');
+                
+                html += `<p>${para}</p>`;
+            });
+            
+            return html;
         }
     }" x-init="init()"
         @keydown.escape.window="closeAll()">
@@ -463,9 +506,13 @@
                                 </div>
                             </template>
                             <div class="flex gap-2">
-                                <input type="text" x-model="internalTemp" @keydown.enter.prevent="addInternal()"
-                                    placeholder="Tambah unit"
-                                    class="flex-1 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500" />
+                                <select x-model="internalTemp"
+                                    class="flex-1 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500">
+                                    <option value="">Pilih Unit/Departemen</option>
+                                    <template x-for="dept in availableDepartments" :key="dept.id">
+                                        <option :value="dept.name" x-text="dept.name"></option>
+                                    </template>
+                                </select>
                                 <button type="button" @click="addInternal()"
                                     class="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white text-[11px]">Tambah</button>
                             </div>
@@ -492,7 +539,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex flex-col gap-1.5 md:col-span-2 lg:col-span-1">
+                    <div class="flex flex-col gap-1.5 md:col-span-2 lg:grid-cols-1">
                         <label
                             class="text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-1">Statistik
                             Peserta <span class="text-[10px] text-gray-400 font-normal">(otomatis)</span></label>

@@ -17,14 +17,27 @@
                         <div>
                             <label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Kepada
                                 (User)</label>
-                            <select x-model="form.to_user_id"
+                            <select x-model="form.to_user_id" @change="form.to_department_id = ''"
                                 class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500 text-gray-700 dark:text-gray-100">
                                 <option value="">-- pilih --</option>
                                 <template x-for="u in recipients" :key="u.id">
                                     <option :value="u.id"
-                                        x-text="u.name + (u.position ? ' · '+u.position : '')"></option>
+                                        x-text="u.name + (u.position ? ' (' + u.position + ')' : '') + (u.department ? ' - ' + u.department : '')"></option>
                                 </template>
                             </select>
+                            <p class="text-[10px] text-gray-400 mt-1">Atau pilih departemen di bawah</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Kepada
+                                (Departemen)</label>
+                            <select x-model="form.to_department_id" @change="form.to_user_id = ''"
+                                class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-500 text-gray-700 dark:text-gray-100">
+                                <option value="">-- pilih --</option>
+                                <template x-for="d in departments" :key="d.id">
+                                    <option :value="d.id" x-text="d.name + (d.code ? ' (' + d.code + ')' : '')"></option>
+                                </template>
+                            </select>
+                            <p class="text-[10px] text-gray-400 mt-1">Pilih departemen jika ingin disposisi ke seluruh unit</p>
                         </div>
                         <div>
                             <label
@@ -76,7 +89,8 @@
                             <template x-for="d in dispositions" :key="d.id">
                                 <li>
                                     <span class="font-semibold" x-text="d.created_at"></span>
-                                    · Ke <span x-text="d.to_user?.name || '-' "></span>
+                                    · Ke <span x-text="d.to_user?.name || d.to_department?.name || '-'"></span>
+                                    <span x-show="d.to_department" class="text-[10px] text-blue-600 dark:text-blue-400">(Dept)</span>
                                     · <span x-text="d.instruction"></span>
                                 </li>
                             </template>
@@ -91,7 +105,8 @@
                         <ul class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
                             <template x-for="d in dispositions" :key="'st-' + d.id">
                                 <li>
-                                    <span x-text="(d.to_user?.name || 'User')"></span>
+                                    <span x-text="d.to_user?.name || d.to_department?.name || 'Penerima'"></span>
+                                    <span x-show="d.to_department" class="text-[10px] text-blue-600 dark:text-blue-400">(Dept)</span>
                                     · <span
                                         :class="{
                                             'text-amber-600 dark:text-amber-400': d.status==='pending',
@@ -120,18 +135,21 @@
         return {
             selected: sel,
             recipients: [],
+            departments: [],
             dispositions: [],
             dispLoading: false,
             submitting: false,
             error: '',
             form: {
                 to_user_id: '',
+                to_department_id: '',
                 instruction: '',
                 priority: 'normal',
                 due_date: ''
             },
             init() {
                 this.fetchRecipients();
+                this.fetchDepartments();
                 this.fetchDispositions();
             },
             async fetchRecipients() {
@@ -143,10 +161,32 @@
                     });
                     if (r.ok) {
                         const j = await r.json();
+                        console.log('Recipients Response:', j);
+                        console.log('Recipients Data:', j.data);
                         this.recipients = j.data;
+                    } else {
+                        console.error('Fetch recipients failed:', r.status, r.statusText);
                     }
                 } catch (e) {
-                    console.error(e);
+                    console.error('Fetch recipients error:', e);
+                }
+            },
+            async fetchDepartments() {
+                try {
+                    const r = await fetch('/rektor/api/departments', {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    if (r.ok) {
+                        const j = await r.json();
+                        console.log('Departments Response:', j);
+                        this.departments = j;
+                    } else {
+                        console.error('Fetch departments failed:', r.status, r.statusText);
+                    }
+                } catch (e) {
+                    console.error('Fetch departments error:', e);
                 }
             },
             async fetchDispositions() {
@@ -180,8 +220,12 @@
             },
             async submit() {
                 this.error = '';
-                if (!this.form.to_user_id || !this.form.instruction) {
-                    this.error = 'Kepada & instruksi wajib.';
+                if ((!this.form.to_user_id && !this.form.to_department_id) || !this.form.instruction) {
+                    this.error = 'Pilih penerima (User atau Departemen) & isi instruksi.';
+                    return;
+                }
+                if (this.form.to_user_id && this.form.to_department_id) {
+                    this.error = 'Pilih salah satu: User atau Departemen, tidak boleh keduanya.';
                     return;
                 }
                 this.submitting = true;
@@ -198,11 +242,14 @@
                     if (res.ok) {
                         this.form = {
                             to_user_id: '',
+                            to_department_id: '',
                             instruction: '',
                             priority: 'normal',
                             due_date: ''
                         };
                         await this.fetchDispositions();
+                        this.error = '';
+                        alert('Disposisi berhasil disimpan!');
                     } else {
                         const j = await res.json();
                         this.error = j.message || 'Gagal menyimpan';

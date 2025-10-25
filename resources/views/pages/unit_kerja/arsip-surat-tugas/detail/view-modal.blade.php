@@ -1,7 +1,48 @@
 <template x-if="showView">
 	<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 py-6 sm:p-0">
 		<div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" @click="closeAll()"></div>
-		<div class="relative w-full sm:max-w-3xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 p-6 flex flex-col gap-5">
+		<div class="relative w-full sm:max-w-3xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 p-6 flex flex-col gap-5" x-data="{ 
+			restoring: false,
+			csrf() { 
+				const el = document.querySelector('meta[name=\"csrf-token\"]'); 
+				return el ? el.content : ''; 
+			},
+			async restoreArchive() {
+				if (!selected || !selected.id) {
+					alert('Tidak ada arsip yang dipilih');
+					return;
+				}
+				
+				if (!confirm(`Pulihkan surat \"${selected.number}\" dari arsip?\n\nSurat akan kembali ke status sebelumnya dan dapat diakses kembali.`)) {
+					return;
+				}
+				
+				this.restoring = true;
+				try {
+					const r = await fetch(`/unit-kerja/api/letters/${selected.id}/restore`, {
+						method: 'POST',
+						headers: { 
+							'Content-Type': 'application/json', 
+							'X-CSRF-TOKEN': this.csrf(),
+							'Accept': 'application/json'
+						}
+					});
+					
+					const j = await r.json();
+					
+					if (!r.ok || !j.success) {
+						throw new Error(j.message || 'Gagal memulihkan arsip');
+					}
+					
+					alert('Surat berhasil dipulihkan dari arsip!');
+					window.location.reload();
+				} catch (e) {
+					alert(e.message || 'Gagal memulihkan arsip');
+				} finally {
+					this.restoring = false;
+				}
+			}
+		}">
 			<div class="flex items-start justify-between gap-4">
 				<div>
 					<h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Detail Arsip Surat Tugas</h3>
@@ -83,7 +124,11 @@
 					</div>
 				</div>
 			</div>
-			<div class="flex items-center justify-end pt-2">
+			<div class="flex items-center justify-between pt-2">
+				<button type="button" @click="restoreArchive()" :disabled="restoring" class="px-4 py-2 rounded-lg text-sm bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+					<i data-feather='rotate-ccw' class='w-4 h-4'></i>
+					<span x-text="restoring ? 'Memulihkan...' : 'Pulihkan dari Arsip'"></span>
+				</button>
 				<button type="button" @click="closeAll()" class="px-4 py-2 rounded-lg text-sm bg-amber-600 hover:bg-amber-500 text-white font-medium flex items-center gap-2">Tutup</button>
 			</div>
 		</div>
