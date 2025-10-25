@@ -29,12 +29,17 @@
 								<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Periode Selesai</label>
 								<input type="date" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 dark:focus:ring-emerald-500 text-gray-700 dark:text-gray-100" />
 							</div>
-						</div>
-						<div>
-							<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Tujuan / Tim</label>
-							<input type="text" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 dark:focus:ring-emerald-500 text-gray-700 dark:text-gray-100" placeholder="Nama tim / unit" />
-						</div>
-						<div class="grid md:grid-cols-2 gap-4">
+					</div>
+					<div>
+						<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Tujuan / Tim</label>
+						<select class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 dark:focus:ring-emerald-500 text-gray-700 dark:text-gray-100">
+							<option value="">Pilih Unit/Departemen</option>
+							<template x-for="dept in availableDepartments" :key="dept.id">
+								<option :value="dept.name" x-text="dept.name"></option>
+							</template>
+						</select>
+					</div>
+					<div class="grid md:grid-cols-2 gap-4">
 							<div>
 								<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Prioritas</label>
 								<select class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 dark:focus:ring-emerald-500 text-gray-700 dark:text-gray-100">

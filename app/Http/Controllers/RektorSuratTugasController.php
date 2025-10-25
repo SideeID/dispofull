@@ -42,6 +42,7 @@ class RektorSuratTugasController extends Controller
         $query = Letter::query()
             ->where('letter_type_id', $letterTypeId)
             ->where('direction', 'outgoing')
+            ->whereNull('archived_at') // Exclude archived letters
             ->withCount('attachments');
 
         if ($q !== '') {
@@ -169,17 +170,24 @@ class RektorSuratTugasController extends Controller
             'id' => $letter->id,
             'number' => $letter->letter_number,
             'subject' => $letter->subject,
+            'perihal' => $letter->subject,
+            'konten' => $letter->content,
+            'content' => $letter->content,
+            'tanggal' => optional($letter->letter_date)->toDateString(),
             'date' => optional($letter->letter_date)->toDateString(),
             'start' => $notes['start_date'] ?? null,
             'end' => $notes['end_date'] ?? null,
             'priority' => $letter->priority,
             'status' => $letter->status,
             'destination' => $notes['tujuanInternal'][0] ?? ($notes['tujuanExternal'][0] ?? null),
+            'tujuanInternal' => $notes['tujuanInternal'] ?? [],
+            'tujuanExternal' => $notes['tujuanExternal'] ?? [],
             'notes' => $notes,
             'participants' => $notes['participants'] ?? [],
             'attachments' => $letter->attachments()->get(['id','original_name','file_path','file_type','file_size'])
                 ->map(fn($a) => [
                     'id' => $a->id,
+                    'filename' => $a->original_name,
                     'name' => $a->original_name,
                     'path' => $a->file_path,
                     'type' => $a->file_type,
@@ -281,12 +289,13 @@ class RektorSuratTugasController extends Controller
 
     /**
      * Change letter status (limited set for ST outgoing letters).
+     * NOTE: Use archive endpoint instead of setting status='archived'
      */
     public function updateStatus(Request $request, Letter $letter)
     {
         $this->ensureST($letter);
         $data = $request->validate([
-            'status' => 'required|in:draft,pending,processed,archived,rejected,closed',
+            'status' => 'required|in:draft,pending,processed,rejected,closed,archived',
             'note' => 'nullable|string|max:1000',
         ]);
 
@@ -344,7 +353,11 @@ class RektorSuratTugasController extends Controller
         $query = Letter::query()
             ->where('letter_type_id', $letterTypeId)
             ->where('direction', 'outgoing')
-            ->where('status', 'archived')
+            ->where(function($q) {
+                // Support both archived_at timestamp and status = 'archived'
+                $q->whereNotNull('archived_at')
+                  ->orWhere('status', 'archived');
+            })
             ->withCount('attachments');
 
         if ($q !== '') {
@@ -397,12 +410,16 @@ class RektorSuratTugasController extends Controller
     public function archivesShow(Letter $letter)
     {
         $this->ensureST($letter);
-        abort_unless($letter->status === 'archived', 404);
+        // Support both archived_at timestamp and status = 'archived'
+        $isArchived = !is_null($letter->archived_at) || $letter->status === 'archived';
+        abort_unless($isArchived, 404);
+        
         $notes = $this->parseNotes($letter->notes);
         $attachments = $letter->attachments()->get(['id','original_name','file_path','file_type','file_size','created_at'])
             ->map(function($a){
                 return [
                     'id'=>$a->id,
+                    'filename'=>$a->original_name,
                     'name'=>$a->original_name,
                     'type'=>$a->file_type,
                     'size'=>$a->file_size,
@@ -415,12 +432,18 @@ class RektorSuratTugasController extends Controller
             'id' => $letter->id,
             'number' => $letter->letter_number,
             'subject' => $letter->subject,
+            'perihal' => $letter->subject,
+            'konten' => $letter->content,
+            'content' => $letter->content,
+            'tanggal' => optional($letter->letter_date)->toDateString(),
             'date' => optional($letter->letter_date)->toDateString(),
             'start' => $notes['start_date'] ?? null,
             'end' => $notes['end_date'] ?? null,
             'priority' => $letter->priority,
             'status' => $letter->status,
             'destination' => $notes['tujuanInternal'][0] ?? ($notes['tujuanExternal'][0] ?? null),
+            'tujuanInternal' => $notes['tujuanInternal'] ?? [],
+            'tujuanExternal' => $notes['tujuanExternal'] ?? [],
             'participants' => $notes['participants'] ?? [],
             'reason' => $notes['alasanArsip'] ?? ($notes['reason'] ?? null),
             'archived_at' => optional($letter->archived_at)->toDateTimeString(),
@@ -481,9 +504,14 @@ class RektorSuratTugasController extends Controller
     public function archivesRestore(Request $request, Letter $letter)
     {
         $this->ensureST($letter);
-        if ($letter->status !== 'archived') {
+        
+        // Cek apakah surat diarsipkan (support both archived_at timestamp dan status)
+        $isArchived = !is_null($letter->archived_at) || $letter->status === 'archived';
+        
+        if (!$isArchived) {
             return response()->json(['message' => 'Surat tidak dalam status arsip'], 422);
         }
+        
         $data = $request->validate([
             'note' => 'nullable|string|max:1000',
             'to_status' => 'nullable|in:draft,pending,processed,rejected,closed',
@@ -498,9 +526,108 @@ class RektorSuratTugasController extends Controller
         }
 
         $letter->status = $toStatus;
-        $letter->archived_at = null;
+        $letter->archived_at = null; // Unarchive
         $letter->save();
 
-        return response()->json(['message' => 'Surat dipulihkan', 'status' => $letter->status]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Surat berhasil dipulihkan', 
+            'status' => $letter->status
+        ]);
+    }
+
+    /**
+     * Store followup/tindak lanjut for a surat tugas.
+     */
+    public function storeFollowup(Request $request, Letter $letter)
+    {
+        $this->ensureST($letter);
+
+        $data = $request->validate([
+            'type' => 'required|in:progress,completed,issue,report',
+            'followup_date' => 'required|date',
+            'completion_percentage' => 'nullable|integer|min:0|max:100',
+            'title' => 'required|string|max:500',
+            'description' => 'required|string',
+            'pic_name' => 'nullable|string|max:255',
+            'department' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
+            'attachment' => 'nullable|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png',
+        ]);
+
+        // Store attachment if provided
+        $attachmentPath = null;
+        $attachmentOriginalName = null;
+        if ($request->hasFile('attachment')) {
+            $file = $request->file('attachment');
+            $attachmentOriginalName = $file->getClientOriginalName();
+            $attachmentPath = $file->store('followups', 'public');
+        }
+
+        // Get existing notes
+        $existingNotes = $this->parseNotes($letter->notes);
+        
+        // Initialize followups array if not exists
+        if (!isset($existingNotes['followups']) || !is_array($existingNotes['followups'])) {
+            $existingNotes['followups'] = [];
+        }
+
+        // Add new followup
+        $followup = [
+            'id' => uniqid('followup_', true),
+            'type' => $data['type'],
+            'followup_date' => $data['followup_date'],
+            'completion_percentage' => $data['completion_percentage'] ?? null,
+            'title' => $data['title'],
+            'description' => $data['description'],
+            'pic_name' => $data['pic_name'] ?? null,
+            'department' => $data['department'] ?? null,
+            'notes' => $data['notes'] ?? null,
+            'attachment_path' => $attachmentPath,
+            'attachment_name' => $attachmentOriginalName,
+            'created_by' => Auth::id(),
+            'created_by_name' => Auth::user()->name,
+            'created_at' => now()->toDateTimeString(),
+        ];
+
+        $existingNotes['followups'][] = $followup;
+
+        // Update letter notes
+        $letter->notes = $existingNotes;
+        
+        // Auto-update status based on followup type
+        if ($data['type'] === 'completed' && $letter->status !== 'closed') {
+            $letter->status = 'processed'; // or 'closed' if you want to auto-close
+        }
+        
+        $letter->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tindak lanjut berhasil disimpan',
+            'data' => $followup
+        ], 201);
+    }
+
+    /**
+     * Get followups/tindak lanjut history for a surat tugas.
+     */
+    public function getFollowups(Letter $letter)
+    {
+        $this->ensureST($letter);
+
+        $notes = $this->parseNotes($letter->notes);
+        $followups = $notes['followups'] ?? [];
+
+        // Sort by created_at descending
+        usort($followups, function($a, $b) {
+            return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $followups,
+            'total' => count($followups)
+        ]);
     }
 }

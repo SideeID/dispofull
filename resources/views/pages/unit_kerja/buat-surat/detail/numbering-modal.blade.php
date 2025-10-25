@@ -25,7 +25,12 @@
 					</div>
 					<div class="flex flex-col gap-1.5">
 						<label class="text-xs font-medium text-gray-600 dark:text-gray-300">Kode Unit</label>
-						<input type="text" x-model="form.nomor.unit" @input="markChanged()" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500" />
+						<select x-model="form.nomor.unit" @change="markChanged()" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500 text-gray-700 dark:text-gray-100">
+							<option value="">Pilih Unit/Departemen</option>
+							<template x-for="dept in availableDepartments" :key="dept.id">
+								<option :value="dept.code" x-text="`${dept.code} - ${dept.name}`"></option>
+							</template>
+						</select>
 					</div>
 					<div class="flex flex-col gap-1.5">
 						<label class="text-xs font-medium text-gray-600 dark:text-gray-300">Tahun</label>

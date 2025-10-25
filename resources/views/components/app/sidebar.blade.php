@@ -53,7 +53,7 @@
                         $iconState = $active ? 'text-orange-600 dark:text-amber-400 bg-orange-500/10 dark:bg-orange-500/20' : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700/60 group-hover:text-gray-600 group-hover:bg-gray-200/80 dark:group-hover:text-gray-300';
                         $labelColor = $active ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-100 group-hover:text-gray-900 dark:group-hover:text-white';
                         $url = $route && Route::has($route) ? route($route) : '#';
-                        $badgeHtml = $badge !== null ? "<span class=\"ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full $badgeColor\">$badge</span>" : '';
+                        $badgeHtml = $badge !== null && $badge !== '' ? "<span class=\"ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full $badgeColor lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200\">$badge</span>" : '';
                         $indicator = '';
                         return <<<HTML
                             <li>$indicator<a href="$url" class="$base $activeClasses">
@@ -63,6 +63,9 @@
                             </a></li>
                         HTML;
                     };
+                    
+                    // Get counts from view composer or default to empty array
+                    $counts = $sidebarCounts ?? [];
                 @endphp
                 <ul class="mt-3">
                     {{-- Common / Role-specific navigation --}}
@@ -76,15 +79,16 @@
                     @elseif($user->role === 'rektorat')
                         {!! $navItem('Dashboard','home','dashboard.rektorat',['dashboard.rektorat']) !!}
                         <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Surat & Tugas</div>
-                        {!! $navItem('Surat Masuk','inbox','surat.masuk',['surat.masuk'],18) !!}
-                        {!! $navItem('Surat Tugas','file-text','surat.tugas',['surat.tugas'],11,'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 dark:bg-indigo-400/10') !!}
+                        {!! $navItem('Surat Masuk','inbox','surat.masuk',['surat.masuk'],$counts['surat_masuk'] ?? null) !!}
+                        {!! $navItem('Surat Tugas','file-text','surat.tugas',['surat.tugas'],$counts['surat_tugas'] ?? null,'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 dark:bg-indigo-400/10') !!}
                         {!! $navItem('Buat / Tindaklanjuti ST','edit','tindaklanjut.surat.tugas',['tindaklanjut.surat.tugas']) !!}
-                        {!! $navItem('History Disposisi','clock','history.disposisi',['history.disposisi'],9,'bg-amber-500/10 text-amber-600 dark:text-amber-300 dark:bg-amber-400/10') !!}
-                        {!! $navItem('Arsip Surat Tugas','archive','arsip.surat.tugas',['arsip.surat.tugas'],142,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}
+                        {!! $navItem('History Disposisi','clock','history.disposisi',['history.disposisi'],$counts['history_disposisi'] ?? null,'bg-amber-500/10 text-amber-600 dark:text-amber-300 dark:bg-amber-400/10') !!}
+                        {!! $navItem('Arsip Surat Tugas','archive','arsip.surat.tugas',['arsip.surat.tugas'],$counts['arsip_surat_tugas'] ?? null,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}
                     @elseif($user->role === 'unit_kerja')
                         {!! $navItem('Dashboard','home','dashboard.unit_kerja',['dashboard.unit_kerja']) !!}
                         <div class="mt-5 mb-2 pl-3 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-600 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Surat</div>
                         {!! $navItem('Surat Masuk','inbox','unit_kerja.surat.masuk',['unit_kerja.surat.masuk']) !!}
+                        {!! $navItem('Inbox Disposisi','send','unit_kerja.inbox.disposisi',['unit_kerja.inbox.disposisi'],null,'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 dark:bg-indigo-400/10') !!}
                         {!! $navItem('Buat Surat','file-plus','unit_kerja.buat.surat',['unit_kerja.buat.surat']) !!}
                         {!! $navItem('Arsip Surat Tugas','archive','unit_kerja.arsip.surat.tugas',['unit_kerja.arsip.surat.tugas'],null,'bg-gray-500/10 text-gray-600 dark:text-gray-300 dark:bg-gray-500/20') !!}
                     @endif

@@ -2,21 +2,27 @@
 	<div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-7xl mx-auto"
 		 x-data="{
 			showView:false, showCreate:false, showParticipants:false, showSign:false, showHistory:false,
-			showConfirm:false, showChangeStatus:false,
+			showConfirm:false, showChangeStatus:false, showPreview:false, showFollowup:false, showFollowupList:false,
 			selected:null,
 			items: [],
+			availableDepartments: [],
+			availableUsers: [],
 			meta: { total: 0, current_page: 1, last_page: 1, per_page: 10 },
 			filters: { q: '', date: '', start_from: '', end_to: '', status: '', priority: '' },
 			loadingList: false,
 			loadingDetail: false,
 			loadingParticipants: false,
+			loadingFollowups: false,
 			participants: [],
+			followupsList: [],
 			newParticipant: { nama: '', nip: '', jabatan: 'anggota', status: '' },
 			creating: false,
-			createForm: { subject: '', letter_date: '', priority: 'normal', notes: { ringkasan: '', klasifikasi: '', tujuanInternal: [], tujuanExternal: [], start_date: '', end_date: '', participants: [], catatanInternal: null } },
+			createForm: { subject: '', letter_date: '', priority: 'normal', selected_user: '', attachments: [], notes: { ringkasan: '', klasifikasi: '', tujuanInternal: [], tujuanExternal: [], start_date: '', end_date: '', participants: [], catatanInternal: null, destination: '', selectedUsers: [] } },
 			logs: [],
 			confirmNote: '',
 			statusForm: { status: '', note: '' },
+			followupForm: { type: 'progress', followup_date: '', completion_percentage: 0, title: '', description: '', pic_name: '', department: '', notes: '', attachment: null },
+			submittingFollowup: false,
 			statusLabel(s){
 				const map = { draft:'Draft', pending:'Pending', processed:'Diproses', rejected:'Ditolak', closed:'Ditutup', archived:'Arsip' };
 				return map[s] ?? s;
@@ -25,6 +31,20 @@
 			refreshIcons(){
 				// Defer to next tick so the DOM is updated before replacing icons
 				queueMicrotask(() => { if(window.feather && typeof window.feather.replace === 'function'){ window.feather.replace(); } });
+			},
+			async fetchDepartments(){
+				try{
+					const res = await fetch('/rektor/api/departments', { headers: { 'Accept':'application/json' } });
+					const json = await res.json();
+					if(json.success) this.availableDepartments = json.data ?? [];
+				}catch(e){ console.error('Failed to load departments:', e); }
+			},
+			async fetchUsers(){
+				try{
+					const res = await fetch('/rektor/api/users', { headers: { 'Accept':'application/json' } });
+					const json = await res.json();
+					if(json.success) this.availableUsers = json.data ?? [];
+				}catch(e){ console.error('Failed to load users:', e); }
 			},
 			async fetchAssignments(page=1){
 				this.loadingList = true;
@@ -40,8 +60,28 @@
 			},
 			submitFilters(e){ e.preventDefault(); this.fetchAssignments(1); },
 			resetFilters(){ this.filters={ q:'', date:'', start_from:'', end_to:'', status:'', priority:'' }; this.fetchAssignments(1); },
-			open(modal,row=null){ this.selected=row; this[modal]=true; if(modal==='showView' && row){ this.loadDetail(row.id); } if(modal==='showParticipants' && row){ this.loadParticipants(row.id); } if(modal==='showHistory' && row){ this.loadHistory(row.id);} },
-			closeAll(){ this.showView=false; this.showCreate=false; this.showParticipants=false; this.showSign=false; this.showHistory=false; this.showConfirm=false; this.showChangeStatus=false; },
+			open(modal,row=null){ 
+				this.selected=row; 
+				this[modal]=true; 
+				if(modal==='showView' && row){ this.loadDetail(row.id); } 
+				if(modal==='showParticipants' && row){ this.loadParticipants(row.id); } 
+				if(modal==='showHistory' && row){ this.loadHistory(row.id);} 
+				if(modal==='showFollowup' && row){ 
+					this.followupForm = { 
+						type: 'progress', 
+						followup_date: new Date().toISOString().split('T')[0], 
+						completion_percentage: 0, 
+						title: '', 
+						description: '', 
+						pic_name: '', 
+						department: '', 
+						notes: '', 
+						attachment: null 
+					}; 
+				}
+				if(modal==='showFollowupList' && row){ this.loadFollowups(row.id); }
+			},
+			closeAll(){ this.showView=false; this.showCreate=false; this.showParticipants=false; this.showSign=false; this.showHistory=false; this.showConfirm=false; this.showChangeStatus=false; this.showFollowup=false; this.showFollowupList=false; },
 			async loadDetail(id){
 				this.loadingDetail = true;
 				try{
@@ -87,13 +127,84 @@
 					this.logs = json.logs ?? [];
 				}catch(e){ console.error(e); }
 			},
+			async loadFollowups(id){
+				this.loadingFollowups = true;
+				try{
+					const res = await fetch(`/rektor/api/assignments/${id}/followups`, { headers: { 'Accept':'application/json' } });
+					const json = await res.json();
+					this.followupsList = json.data ?? [];
+					this.refreshIcons();
+				}catch(e){ console.error(e); }
+				finally{ this.loadingFollowups = false; }
+			},
+			addSelectedUser(){
+				if(!this.createForm.selected_user) return;
+				try{
+					const user = JSON.parse(this.createForm.selected_user);
+					// Check if user already added
+					const exists = this.createForm.notes.selectedUsers.some(u => u.id === user.id);
+					if(!exists){
+						this.createForm.notes.selectedUsers.push({
+							id: user.id,
+							name: user.name,
+							position: user.position,
+							department: user.department
+						});
+						this.refreshDestination();
+					}
+					this.createForm.selected_user = ''; // Reset selection
+					this.refreshIcons();
+				}catch(e){ console.error('Error parsing user:', e); }
+			},
+			refreshDestination(){
+				// Update destination field with first selected user name
+				if(this.createForm.notes.selectedUsers.length > 0){
+					this.createForm.notes.destination = this.createForm.notes.selectedUsers[0].name;
+					// Also update tujuanInternal with all selected user names
+					this.createForm.notes.tujuanInternal = this.createForm.notes.selectedUsers.map(u => u.name);
+				} else {
+					this.createForm.notes.destination = '';
+					this.createForm.notes.tujuanInternal = [];
+				}
+			},
+			handleFileUpload(event){
+				const files = event.target.files;
+				if(files && files.length > 0){
+					const file = files[0];
+					// Check file size (max 5MB)
+					if(file.size > 5 * 1024 * 1024){
+						alert('File terlalu besar! Maksimal 5MB');
+						event.target.value = '';
+						return;
+					}
+					// Add to attachments array
+					if(!this.createForm.attachments){
+						this.createForm.attachments = [];
+					}
+					this.createForm.attachments.push({
+						name: file.name,
+						size: file.size,
+						type: file.type,
+						file: file
+					});
+					// Reset input
+					event.target.value = '';
+					this.refreshIcons();
+				}
+			},
 			async submitCreate(){
 				this.creating = true;
 				try{
-					// map destination from simple input if provided
-					if(this.createForm.notes.destination && this.createForm.notes.destination.trim() !== ''){
-						this.createForm.notes.tujuanInternal = [ this.createForm.notes.destination.trim() ];
+					// Validate required fields
+					if(!this.createForm.subject || !this.createForm.letter_date){
+						alert('Perihal dan Tanggal Surat harus diisi!');
+						this.creating = false;
+						return;
 					}
+
+					// Auto-update destination from selectedUsers
+					this.refreshDestination();
+					
 					const res = await fetch('/rektor/api/assignments', {
 						method:'POST',
 						headers:{ 'Content-Type':'application/json', 'Accept':'application/json', 'X-CSRF-TOKEN': this.csrf },
@@ -109,12 +220,46 @@
 								start_date: this.createForm.notes.start_date || '',
 								end_date: this.createForm.notes.end_date || '',
 								participants: this.createForm.notes.participants || [],
+								selectedUsers: this.createForm.notes.selectedUsers || [],
 								catatanInternal: this.createForm.notes.catatanInternal ?? null,
 							}
 						})
 					});
-					if(res.ok){ this.closeAll(); this.fetchAssignments(1); }
-				}catch(e){ console.error(e); }
+					
+					const json = await res.json();
+					
+					if(res.ok){ 
+						alert('Surat tugas berhasil dibuat!\nNomor: ' + (json.data?.number || 'DRAFT'));
+						this.closeAll(); 
+						// Reset form completely
+						this.createForm = { 
+							subject: '', 
+							letter_date: '', 
+							priority: 'normal', 
+							selected_user: '', 
+							attachments: [], 
+							notes: { 
+								ringkasan: '', 
+								klasifikasi: '', 
+								tujuanInternal: [], 
+								tujuanExternal: [], 
+								start_date: '', 
+								end_date: '', 
+								participants: [], 
+								catatanInternal: null, 
+								destination: '', 
+								selectedUsers: [] 
+							} 
+						};
+						this.newParticipant = { nama: '', nip: '', jabatan: 'anggota', status: '' };
+						this.fetchAssignments(1); 
+					} else {
+						alert('Gagal membuat surat: ' + (json.message || 'Terjadi kesalahan'));
+					}
+				}catch(e){ 
+					console.error(e); 
+					alert('Terjadi kesalahan saat menyimpan surat tugas');
+				}
 				finally{ this.creating = false; }
 			},
 			async submitConfirm(){
@@ -138,9 +283,45 @@
 					});
 					if(res.ok){ this.closeAll(); await this.fetchAssignments(this.meta.current_page); }
 				}catch(e){ console.error(e); }
+			},
+			async submitFollowup(){
+				if(!this.selected?.id) return;
+				this.submittingFollowup = true;
+				try{
+					const formData = new FormData();
+					formData.append('type', this.followupForm.type);
+					formData.append('followup_date', this.followupForm.followup_date);
+					formData.append('completion_percentage', this.followupForm.completion_percentage || 0);
+					formData.append('title', this.followupForm.title);
+					formData.append('description', this.followupForm.description);
+					if(this.followupForm.pic_name) formData.append('pic_name', this.followupForm.pic_name);
+					if(this.followupForm.department) formData.append('department', this.followupForm.department);
+					if(this.followupForm.notes) formData.append('notes', this.followupForm.notes);
+					if(this.followupForm.attachment) formData.append('attachment', this.followupForm.attachment);
+
+					const res = await fetch(`/rektor/api/assignments/${this.selected.id}/followups`, {
+						method:'POST',
+						headers:{ 'Accept':'application/json', 'X-CSRF-TOKEN': this.csrf },
+						body: formData
+					});
+					const json = await res.json();
+					if(res.ok){ 
+						this.closeAll(); 
+						await this.fetchAssignments(this.meta.current_page);
+						// Show success notification (you can add toast notification here)
+						alert('Tindak lanjut berhasil disimpan!');
+					} else {
+						alert(json.message || 'Gagal menyimpan tindak lanjut');
+					}
+				}catch(e){ 
+					console.error(e); 
+					alert('Terjadi kesalahan saat menyimpan tindak lanjut');
+				} finally {
+					this.submittingFollowup = false;
+				}
 			}
 		 }"
-		 x-init="fetchAssignments()"
+		 x-init="fetchAssignments(); fetchDepartments(); fetchUsers();"
 		 @refresh-assignment-letters.window="fetchAssignments(meta.current_page)"
 		 @keydown.escape.window="closeAll()"
 	>
@@ -280,6 +461,11 @@
 											<i data-feather="eye" class="w-4 h-4 text-amber-600 dark:text-amber-400"></i>
 											<span class="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded bg-gray-800 dark:bg-gray-900 text-white opacity-0 group-hover:opacity-100">Detail</span>
 										</button>
+										<!-- Riwayat Tindak Lanjut -->
+										<button @click="open('showFollowupList', row)" class="group relative inline-flex items-center justify-center p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none" aria-label="Riwayat Tindak Lanjut">
+											<i data-feather="list" class="w-4 h-4 text-purple-600 dark:text-purple-400"></i>
+											<span class="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded bg-gray-800 dark:bg-gray-900 text-white opacity-0 group-hover:opacity-100 whitespace-nowrap">Riwayat Tindak Lanjut</span>
+										</button>
 										<!-- Peserta -->
 										<button @click="open('showParticipants', row)" class="group relative inline-flex items-center justify-center p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none" aria-label="Peserta">
 											<i data-feather="users" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i>
@@ -297,6 +483,14 @@
 											<i data-feather="sliders" class="w-4 h-4 text-slate-600 dark:text-slate-300"></i>
 											<span class="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded bg-gray-800 dark:bg-gray-900 text-white opacity-0 group-hover:opacity-100">Ubah Status</span>
 										</button>
+
+										<!-- Tindak Lanjut (processed status) -->
+										<template x-if="['processed','pending'].includes(row.status)">
+											<button @click="open('showFollowup', row)" class="group relative inline-flex items-center justify-center p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none" aria-label="Tindak Lanjut">
+												<i data-feather="clipboard" class="w-4 h-4 text-violet-600 dark:text-violet-400"></i>
+												<span class="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded bg-gray-800 dark:bg-gray-900 text-white opacity-0 group-hover:opacity-100 whitespace-nowrap">Tindak Lanjut</span>
+											</button>
+										</template>
 
 										<!-- TTD (draft/pending) -->
 										<template x-if="['draft','pending'].includes(row.status)">
@@ -323,12 +517,15 @@
 		</div>
 
 		@include('pages.rektorat.surat-tugas.detail.view-modal')
+		@include('pages.rektorat.surat-tugas.detail.preview-modal')
 		@include('pages.rektorat.surat-tugas.detail.create-modal')
 		@include('pages.rektorat.surat-tugas.detail.participants-modal')
 		@include('pages.rektorat.surat-tugas.detail.sign-modal')
 		@include('pages.rektorat.surat-tugas.detail.confirm-modal')
 		@include('pages.rektorat.surat-tugas.detail.change-status-modal')
 		@include('pages.rektorat.surat-tugas.detail.history-modal')
+		@include('pages.rektorat.surat-tugas.detail.followup-modal')
+		@include('pages.rektorat.surat-tugas.detail.followup-list-modal')
 
 		<div class="mt-10 text-center text-[11px] text-gray-400 dark:text-gray-600">Sistem Pengelolaan Surat · Universitas Bakrie</div>
 	</div>

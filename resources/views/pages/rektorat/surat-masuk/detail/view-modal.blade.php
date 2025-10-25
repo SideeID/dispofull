@@ -74,6 +74,14 @@
                     </div>
                     <div class="flex gap-2">
                         <button
+                            @click="closeAll(); open('showPreview', selected)"
+                            class="flex-1 px-4 py-2 rounded-lg text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center justify-center gap-1.5">
+                            <i data-feather="eye" class="w-3.5 h-3.5"></i>
+                            Preview Surat
+                        </button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button
                             @click="closeAll(); $dispatch('open-modal', { modal: 'showDisposition', row: selected })"
                             class="flex-1 px-4 py-2 rounded-lg text-xs bg-amber-600 hover:bg-amber-500 text-white font-medium">Disposisi</button>
                         <button @click="closeAll(); $dispatch('open-modal', { modal: 'showAttachment', row: selected })"

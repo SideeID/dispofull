@@ -5,6 +5,7 @@
 			showView:false, showRoute:false, showNotes:false, showAttachments:false, showHistory:false,
 			// Data
 			items: [],
+			availableDepartments: [],
 			meta: { total: 0, current_page: 1, last_page: 1, per_page: 10 },
 			filters: { q:'', date:'', status:'', priority:'', to:'' },
 			selected:null,
@@ -14,6 +15,13 @@
 			logs: [],
 			loading:false,
 			refreshIcons(){ queueMicrotask(()=>{ if(window.feather?.replace) window.feather.replace(); }); },
+			async fetchDepartments(){
+				try{
+					const res = await fetch('/rektor/api/departments', { headers: { 'Accept':'application/json' } });
+					const json = await res.json();
+					if(json.success) this.availableDepartments = json.data ?? [];
+				}catch(e){ console.error('Failed to load departments:', e); }
+			},
 			statusClass(s){
 				const map = { in_progress:'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400', forwarded:'bg-blue-500/10 text-blue-600 dark:text-blue-400', completed:'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', archived:'bg-slate-500/10 text-slate-600 dark:text-slate-400' };
 				return map[s] ?? 'bg-slate-500/10 text-slate-600 dark:text-slate-300';
@@ -60,7 +68,7 @@
 			async loadAttachments(){ if(!this.selected?.id) return; try{ const res=await fetch(`/rektor/api/history/dispositions/${this.selected.id}/attachments`,{headers:{'Accept':'application/json'}}); const j=await res.json(); this.attachmentsList = j.data ?? []; }catch(e){ console.error(e); } },
 			async loadTimeline(){ if(!this.selected?.id) return; try{ const res=await fetch(`/rektor/api/history/dispositions/${this.selected.id}/history`,{headers:{'Accept':'application/json'}}); const j=await res.json(); this.logs = j.data ?? []; }catch(e){ console.error(e); } },
 		 }"
-		 x-init="fetchDispositions()"
+		 x-init="fetchDispositions(); fetchDepartments();"
 		 @refresh-history-disposisi.window="fetchDispositions(meta.current_page)"
 		 @keydown.escape.window="closeAll()"
 	>
@@ -73,12 +81,61 @@
 					</span>
 					History Disposisi
 				</h1>
+				<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Tracking dan monitoring semua disposisi surat masuk</p>
 			</div>
 			<div class="flex items-center gap-3">
 				<button @click="$dispatch('refresh-history-disposisi')" class="btn bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
 					<i data-feather="refresh-cw" class="w-4 h-4"></i>
 					<span class="hidden sm:inline">Refresh</span>
 				</button>
+			</div>
+		</div>
+
+		<!-- Stats Cards -->
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" x-data="{ stats: { total: 0, in_progress: 0, completed: 0, forwarded: 0 } }" x-effect="stats = { total: meta.total, in_progress: items.filter(i => i.status === 'in_progress').length, completed: items.filter(i => i.status === 'completed').length, forwarded: items.filter(i => i.status === 'pending').length }">
+			<div class="bg-white dark:bg-gray-800 rounded-lg ring-1 ring-gray-200 dark:ring-gray-700 p-5">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Total Disposisi</p>
+						<p class="text-2xl font-bold text-gray-800 dark:text-gray-100 mt-1" x-text="stats.total"></p>
+					</div>
+					<div class="h-12 w-12 rounded-lg bg-violet-500/10 flex items-center justify-center">
+						<i data-feather="git-branch" class="w-6 h-6 text-violet-600 dark:text-violet-400"></i>
+					</div>
+				</div>
+			</div>
+			<div class="bg-white dark:bg-gray-800 rounded-lg ring-1 ring-gray-200 dark:ring-gray-700 p-5">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Diteruskan</p>
+						<p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1" x-text="stats.forwarded"></p>
+					</div>
+					<div class="h-12 w-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+						<i data-feather="send" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+					</div>
+				</div>
+			</div>
+			<div class="bg-white dark:bg-gray-800 rounded-lg ring-1 ring-gray-200 dark:ring-gray-700 p-5">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Dalam Proses</p>
+						<p class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1" x-text="stats.in_progress"></p>
+					</div>
+					<div class="h-12 w-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
+						<i data-feather="clock" class="w-6 h-6 text-amber-600 dark:text-amber-400"></i>
+					</div>
+				</div>
+			</div>
+			<div class="bg-white dark:bg-gray-800 rounded-lg ring-1 ring-gray-200 dark:ring-gray-700 p-5">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Selesai</p>
+						<p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1" x-text="stats.completed"></p>
+					</div>
+					<div class="h-12 w-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+						<i data-feather="check-circle" class="w-6 h-6 text-emerald-600 dark:text-emerald-400"></i>
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -118,7 +175,12 @@
 				</div>
 				<div>
 					<label class="block text-xs font-medium mb-1 text-gray-600 dark:text-gray-300">Tujuan Akhir</label>
-					<input type="text" x-model="filters.to" placeholder="Unit / Jabatan" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500 text-gray-700 dark:text-gray-100" />
+					<select x-model="filters.to" class="w-full rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500 text-gray-700 dark:text-gray-100">
+						<option value="">Semua Unit/Departemen</option>
+						<template x-for="dept in availableDepartments" :key="dept.id">
+							<option :value="dept.name" x-text="dept.name"></option>
+						</template>
+					</select>
 				</div>
 				<div class="flex gap-2 md:col-span-1">
 					<button type="submit" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg px-4 py-2 transition">Filter</button>

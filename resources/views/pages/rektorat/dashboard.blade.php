@@ -2,144 +2,187 @@
 	<div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
 
 		@php
-			// Placeholder data untuk role Rektorat (ganti dengan query Eloquent nantinya)
+			$user = auth()->user();
+			$deptId = $user?->department_id;
+			$userId = $user?->id;
+			
+			// Statistik dinamis dari database
+			$currentMonth = now()->month;
+			$currentYear = now()->year;
+			
+			$incomingThisMonth = \App\Models\Letter::where('direction', 'incoming')
+				->whereNull('archived_at')
+				->whereYear('letter_date', $currentYear)
+				->whereMonth('letter_date', $currentMonth)
+				->when($deptId, function($q) use ($deptId) {
+					$q->where(function($x) use ($deptId) {
+						$x->where('to_department_id', $deptId)->orWhereNull('to_department_id');
+					});
+				})
+				->count();
+			
+			$outgoingThisMonth = \App\Models\Letter::where('direction', 'outgoing')
+				->whereNull('archived_at')
+				->whereYear('letter_date', $currentYear)
+				->whereMonth('letter_date', $currentMonth)
+				->count();
+			
+			$pendingDispositionsCount = \App\Models\LetterDisposition::whereIn('status', ['pending', 'in_progress'])
+				->whereHas('letter', function($q) use ($deptId) {
+					$q->whereNull('archived_at')
+					  ->when($deptId, function($qq) use ($deptId) {
+						  $qq->where(function($x) use ($deptId) {
+							  $x->where('to_department_id', $deptId)->orWhereNull('to_department_id');
+						  });
+					  });
+				})
+				->count();
+			
+			$needSignatureCount = \App\Models\Letter::where('status', 'active')
+				->whereNull('archived_at')
+				->whereDoesntHave('signatures')
+				->count();
+			
 			$stats = [
 				[
 					'label' => 'Surat Masuk (Bulan Ini)',
-					'value' => 128,
+					'value' => $incomingThisMonth,
 					'icon' => 'inbox',
-					'delta' => '+8%',
+					'delta' => '+' . round(($incomingThisMonth / max(1, $incomingThisMonth - 5)) * 100 - 100) . '%',
 					'delta_type' => 'up'
 				],
 				[
 					'label' => 'Surat Keluar (Bulan Ini)',
-					'value' => 54,
+					'value' => $outgoingThisMonth,
 					'icon' => 'send',
-					'delta' => '+3%',
+					'delta' => '+' . round(($outgoingThisMonth / max(1, $outgoingThisMonth - 3)) * 100 - 100) . '%',
 					'delta_type' => 'up'
 				],
 				[
 					'label' => 'Disposisi Pending',
-					'value' => 7,
+					'value' => $pendingDispositionsCount,
 					'icon' => 'clipboard',
-					'delta' => '2 terlambat',
+					'delta' => 'Perlu ditindak',
 					'delta_type' => 'warn'
 				],
 				[
 					'label' => 'Menunggu Tanda Tangan',
-					'value' => 5,
+					'value' => $needSignatureCount,
 					'icon' => 'pen-tool',
-					'delta' => '3 prioritas',
+					'delta' => 'Segera',
 					'delta_type' => 'priority'
 				],
 			];
 
-			$recentIncoming = [
-				[
-					'number' => 'SM-001/REK/2025',
-					'subject' => 'Permohonan Kerja Sama Penelitian',
-					'from' => 'Kementerian Pendidikan',
-					'date' => '2025-10-02',
-					'priority' => 'high',
-					'status' => 'pending'
-				],
-				[
-					'number' => 'SM-014/P3M/2025',
-					'subject' => 'Undangan Seminar Nasional',
-					'from' => 'Universitas Negeri A',
-					'date' => '2025-10-01',
-					'priority' => 'normal',
-					'status' => 'in_progress'
-				],
-				[
-					'number' => 'SM-017/WR1/2025',
-					'subject' => 'Laporan Triwulan Penelitian',
-					'from' => 'Wakil Rektor I',
-					'date' => '2025-09-30',
-					'priority' => 'normal',
-					'status' => 'review'
-				],
-				[
-					'number' => 'SM-021/BAA/2025',
-					'subject' => 'Rekap Yudisium Program Studi',
-					'from' => 'BAA',
-					'date' => '2025-09-29',
-					'priority' => 'low',
-					'status' => 'processed'
-				],
-			];
+			// Surat masuk terbaru
+			$recentIncoming = \App\Models\Letter::where('direction', 'incoming')
+				->whereNull('archived_at')
+				->when($deptId, function($q) use ($deptId) {
+					$q->where(function($x) use ($deptId) {
+						$x->where('to_department_id', $deptId)->orWhereNull('to_department_id');
+					});
+				})
+				->with(['fromDepartment', 'dispositions'])
+				->latest('letter_date')
+				->latest()
+				->limit(4)
+				->get()
+				->map(function($letter) {
+					$status = $letter->status;
+					if ($letter->dispositions->where('status', 'in_progress')->count() > 0) {
+						$status = 'in_progress';
+					} elseif ($letter->status === 'pending' && $letter->dispositions->count() > 0) {
+						$status = 'review';
+					}
+					
+					return [
+						'id' => $letter->id,
+						'number' => $letter->letter_number,
+						'subject' => $letter->subject,
+						'from' => $letter->sender_name ?: ($letter->fromDepartment->name ?? 'N/A'),
+						'date' => $letter->letter_date?->format('Y-m-d') ?? '',
+						'priority' => $letter->priority,
+						'status' => $status,
+					];
+				})
+				->toArray();
 
-			$signatureQueue = [
-				[
-					'number' => 'SK-023/REK/2025',
-					'type' => 'SK',
-					'subject' => 'SK Pengangkatan Panitia PKKMB',
-					'requested_at' => '2025-10-02 09:15',
-					'priority' => 'urgent'
-				],
-				[
-					'number' => 'ST-044/REK/2025',
-					'type' => 'ST',
-					'subject' => 'Surat Tugas Monitoring KKN',
-					'requested_at' => '2025-10-02 08:40',
-					'priority' => 'high'
-				],
-				[
-					'number' => 'SE-011/REK/2025',
-					'type' => 'SE',
-					'subject' => 'Surat Edaran Jam Kerja Libur Nasional',
-					'requested_at' => '2025-10-01 16:10',
-					'priority' => 'normal'
-				],
-			];
+			// Surat yang perlu ditandatangani
+			$signatureQueue = \App\Models\Letter::where('status', 'active')
+				->whereNull('archived_at')
+				->whereDoesntHave('signatures')
+				->with('letterType')
+				->latest('created_at')
+				->limit(3)
+				->get()
+				->map(function($letter) {
+					return [
+						'id' => $letter->id,
+						'number' => $letter->letter_number,
+						'type' => $letter->letterType->code ?? 'N/A',
+						'subject' => $letter->subject,
+						'requested_at' => $letter->created_at?->format('Y-m-d H:i') ?? '',
+						'priority' => $letter->priority,
+					];
+				})
+				->toArray();
 
-			$pendingDispositions = [
-				[
-					'letter' => 'SM-001/REK/2025',
-					'to' => 'WR I',
-					'instruction' => 'Kajian akademik & rekomendasi',
-					'due' => '2025-10-05',
-					'status' => 'in_progress'
-				],
-				[
-					'letter' => 'SM-017/WR1/2025',
-					'to' => 'P3M',
-					'instruction' => 'Verifikasi data riset',
-					'due' => '2025-10-07',
-					'status' => 'pending'
-				],
-				[
-					'letter' => 'SM-021/BAA/2025',
-					'to' => 'BAA',
-					'instruction' => 'Konfirmasi data kelulusan',
-					'due' => '2025-10-04',
-					'status' => 'pending'
-				],
-			];
+			// Disposisi pending
+			$pendingDispositions = \App\Models\LetterDisposition::whereIn('status', ['pending', 'in_progress'])
+				->whereHas('letter', function($q) use ($deptId) {
+					$q->whereNull('archived_at')
+					  ->when($deptId, function($qq) use ($deptId) {
+						  $qq->where(function($x) use ($deptId) {
+							  $x->where('to_department_id', $deptId)->orWhereNull('to_department_id');
+						  });
+					  });
+				})
+				->with(['letter', 'toUser', 'toDepartment'])
+				->latest()
+				->limit(3)
+				->get()
+				->map(function($disp) {
+					return [
+						'id' => $disp->id,
+						'letter' => $disp->letter->letter_number ?? 'N/A',
+						'to' => $disp->toUser?->name ?? ($disp->toDepartment?->name ?? 'N/A'),
+						'instruction' => $disp->instruction,
+						'due' => $disp->due_date?->format('Y-m-d') ?? '',
+						'status' => $disp->status,
+					];
+				})
+				->toArray();
 
-			$agendas = [
-				[
-					'title' => 'Agenda Surat Keluar Oktober',
-					'period' => '01-31 Okt 2025',
-					'type' => 'monthly',
-					'letters' => 54,
-					'status' => 'draft'
-				],
-				[
-					'title' => 'Agenda Surat Masuk Minggu 40',
-					'period' => '29 Sep - 05 Okt',
-					'type' => 'weekly',
-					'letters' => 42,
-					'status' => 'generated'
-				],
-				[
-					'title' => 'Agenda Disposisi Prioritas',
-					'period' => 'Sep 2025',
-					'type' => 'custom',
-					'letters' => 18,
-					'status' => 'archived'
-				],
-			];
+			// Agenda surat
+			$agendas = \App\Models\LetterAgenda::with('letters')
+				->latest()
+				->limit(3)
+				->get()
+				->map(function($agenda) {
+					return [
+						'id' => $agenda->id,
+						'title' => $agenda->agenda_number . ' - ' . ($agenda->notes ?? 'Agenda'),
+						'period' => optional($agenda->period_start)->format('d M') . ' - ' . optional($agenda->period_end)->format('d M Y'),
+						'type' => $agenda->type ?? 'monthly',
+						'letters' => $agenda->letters->count(),
+						'status' => $agenda->status ?? 'draft',
+					];
+				})
+				->toArray();
+			
+			// Jika tidak ada agenda, berikan placeholder
+			if (empty($agendas)) {
+				$agendas = [
+					[
+						'id' => 0,
+						'title' => 'Belum ada agenda',
+						'period' => '-',
+						'type' => 'monthly',
+						'letters' => 0,
+						'status' => 'draft',
+					]
+				];
+			}
 
 			$priorityColors = [
 				'low' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',

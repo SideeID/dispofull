@@ -11,6 +11,7 @@ use App\Models\LetterSignature;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class RektoratController extends Controller
@@ -22,7 +23,15 @@ class RektoratController extends Controller
         $deptId = $user?->department_id;
         $userId = $user?->id;
 
+        // Dapatkan ID dari letter_type Surat Tugas (ST) untuk dikecualikan
+        $suratTugasTypeId = \App\Models\LetterType::where('code', 'ST')->value('id');
+
         $letters = Letter::query()
+            ->whereNull('archived_at') // Exclude archived letters
+            // Exclude Surat Tugas (ST) from incoming letters
+            ->when($suratTugasTypeId, function($q) use ($suratTugasTypeId) {
+                $q->where('letter_type_id', '!=', $suratTugasTypeId);
+            })
             ->where(function($q) use ($deptId, $userId){
                 $q->where(function($w) use ($deptId){
                     $w->where('direction','incoming')
@@ -67,6 +76,287 @@ class RektoratController extends Controller
     public function tindakLanjutSuratTugas()
     {
         return view('pages.rektorat.tindaklanjut-surat-tugas.index');
+    }
+
+    /**
+     * Get assignment letters (surat tugas) with follow-up monitoring
+     * Filters: q, date_from, date_to, status, priority, period_from, period_to
+     */
+    public function tindakLanjutIndex(Request $request)
+    {
+        // Get Surat Tugas letter type
+        $letterType = \App\Models\LetterType::where('code', 'ST')->first();
+        if (!$letterType) {
+            return response()->json([
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => 10,
+                    'total' => 0,
+                ]
+            ]);
+        }
+
+        // Surat Tugas untuk tindak lanjut
+        $query = Letter::where('letter_type_id', $letterType->id)
+            ->where('direction', 'outgoing')
+            ->whereNull('archived_at') // Exclude archived
+            ->with([
+                'letterType',
+                'agenda',
+                'dispositions' => function ($q) {
+                    $q->with(['toUser', 'toDepartment']);
+                },
+                'signatures' => function ($q) {
+                    $q->with('user');
+                },
+                'attachments'
+            ]);
+
+        // Search by number or subject
+        if ($request->filled('q')) {
+            $search = $request->q;
+            $query->where(function ($q) use ($search) {
+                $q->where('letter_number', 'like', "%{$search}%")
+                  ->orWhere('subject', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by date
+        if ($request->filled('date_from')) {
+            $query->whereDate('letter_date', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('letter_date', '<=', $request->date_to);
+        }
+
+        // Filter by period (task assignment period)
+        if ($request->filled('period_from')) {
+            $query->whereDate('created_at', '>=', $request->period_from);
+        }
+        if ($request->filled('period_to')) {
+            $query->whereDate('created_at', '<=', $request->period_to);
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            $status = $request->status;
+            if ($status === 'draft') {
+                $query->where('status', 'draft');
+            } elseif ($status === 'need_signature') {
+                $query->where('status', 'active')
+                      ->whereDoesntHave('signatures');
+            } elseif ($status === 'signed') {
+                $query->where('status', 'active')
+                      ->whereHas('signatures');
+            } elseif ($status === 'published') {
+                $query->where('status', 'published');
+            } elseif ($status === 'archived') {
+                $query->where('status', 'archived');
+            }
+        }
+
+        // Filter by priority
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+        $letters = $query->orderBy('letter_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->integer('per_page', 10));
+
+        // Add computed fields for monitoring
+        $data = collect($letters->items())->map(function($letter) {
+            // Parse notes to get followup data
+            $notes = is_string($letter->notes) ? json_decode($letter->notes, true) : (is_array($letter->notes) ? $letter->notes : []);
+            $followups = $notes['followups'] ?? [];
+            
+            // Calculate completion percentage from followups
+            $completionPercentage = 0;
+            if (!empty($followups)) {
+                $latestFollowup = collect($followups)->sortByDesc('created_at')->first();
+                $completionPercentage = $latestFollowup['completion_percentage'] ?? 0;
+            }
+            
+            $totalRecipients = $letter->dispositions->count();
+            $completedRecipients = $letter->dispositions->filter(function($d) {
+                return !is_null($d->completed_at) || $d->status === 'completed';
+            })->count();
+            
+            return [
+                'id' => $letter->id,
+                'letter_number' => $letter->letter_number,
+                'subject' => $letter->subject,
+                'perihal' => $letter->subject,
+                'letter_date' => optional($letter->letter_date)->format('Y-m-d'),
+                'created_at' => optional($letter->created_at)->format('Y-m-d H:i:s'),
+                'priority' => $letter->priority,
+                'status' => $letter->status,
+                'agenda' => $letter->agenda ? [
+                    'id' => $letter->agenda->id,
+                    'name' => $letter->agenda->name ?? $letter->agenda->agenda_number,
+                ] : null,
+                'total_recipients' => $totalRecipients,
+                'completed_recipients' => $completedRecipients,
+                'completion_rate' => $totalRecipients > 0 
+                    ? round(($completedRecipients / $totalRecipients) * 100, 1)
+                    : $completionPercentage,
+                'overall_status' => $this->determineOverallStatus($letter),
+                'attachments' => $letter->attachments->map(fn($a) => [
+                    'id' => $a->id,
+                    'original_name' => $a->original_name,
+                    'file_path' => $a->file_path,
+                    'file_type' => $a->file_type,
+                ]),
+                'signature' => $letter->signatures->first() ? [
+                    'signer_name' => $letter->signatures->first()->signer_name,
+                    'signer_title' => $letter->signatures->first()->signer_title,
+                    'signature_data' => $letter->signatures->first()->signature_data,
+                    'signature_path' => $letter->signatures->first()->signature_path,
+                    'signed_at' => optional($letter->signatures->first()->created_at)->format('Y-m-d H:i:s'),
+                ] : null,
+                'followups_count' => count($followups),
+                'latest_followup' => !empty($followups) ? collect($followups)->sortByDesc('created_at')->first() : null,
+            ];
+        });
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $letters->currentPage(),
+                'last_page' => $letters->lastPage(),
+                'per_page' => $letters->perPage(),
+                'total' => $letters->total(),
+            ]
+        ]);
+    }
+
+    /**
+     * Get detailed follow-up status for a specific assignment letter
+     */
+    public function tindakLanjutShow($id)
+    {
+        $letter = Letter::where('letter_type_id', 3) // 3 = Surat Tugas
+            ->with([
+                'letterType',
+                'dispositions' => function ($q) {
+                    $q->with(['toUser', 'toDepartment', 'fromUser'])
+                      ->orderBy('created_at', 'asc');
+                },
+                'signatures' => function ($q) {
+                    $q->with('user')->orderBy('signed_at', 'asc');
+                },
+                'attachments'
+            ])
+            ->findOrFail($id);
+
+        // Group dispositions by recipient for tracking
+        $recipients = $letter->dispositions->groupBy(function ($disposition) {
+            return $disposition->to_user_id 
+                ? 'user_' . $disposition->to_user_id 
+                : 'dept_' . $disposition->to_department_id;
+        })->map(function ($dispositions) {
+            $latest = $dispositions->sortByDesc('created_at')->first();
+            return [
+                'recipient_type' => $latest->to_user_id ? 'user' : 'department',
+                'recipient' => $latest->to_user_id ? $latest->toUser : $latest->toDepartment,
+                'status' => $latest->status,
+                'response' => $latest->response,
+                'completed_at' => $latest->completed_at,
+                'timeline' => $dispositions->map(function ($d) {
+                    return [
+                        'id' => $d->id,
+                        'status' => $d->status,
+                        'notes' => $d->notes,
+                        'response' => $d->response,
+                        'created_at' => $d->created_at,
+                        'read_at' => $d->read_at,
+                        'completed_at' => $d->completed_at,
+                    ];
+                })
+            ];
+        })->values();
+
+        // Parse metadata dari notes
+        $metadata = [];
+        if ($letter->notes && is_string($letter->notes)) {
+            $decoded = json_decode($letter->notes, true);
+            if (is_string($decoded)) {
+                $metadata = json_decode($decoded, true) ?? [];
+            } else {
+                $metadata = $decoded ?? [];
+            }
+        } elseif (is_array($letter->notes)) {
+            $metadata = $letter->notes;
+        }
+
+        // Transform letter data untuk preview
+        $transformedLetter = [
+            'id' => $letter->id,
+            'number' => $letter->letter_number,
+            'subject' => $letter->subject,
+            'perihal' => $letter->subject,
+            'from' => $letter->from,
+            'date' => $letter->letter_date,
+            'tanggal' => $letter->letter_date,
+            'priority' => $letter->priority,
+            'status' => $letter->status,
+            'konten' => $letter->content,
+            'tujuanInternal' => $metadata['tujuanInternal'] ?? [],
+            'tujuanExternal' => $metadata['tujuanExternal'] ?? [],
+            'agenda' => $letter->agenda_number,
+            'notes' => $letter->notes,
+            'letter_type' => $letter->letterType,
+            'signature' => $letter->signatures->isNotEmpty() ? [
+                'signer_name' => $letter->signatures->first()->signer_name,
+                'signer_title' => $letter->signatures->first()->signer_title,
+                'signature_data' => $letter->signatures->first()->signature_data,
+                'signature_path' => $letter->signatures->first()->signature_path,
+                'signed_at' => $letter->signatures->first()->signed_at,
+            ] : null,
+            'attachments' => $letter->attachments->map(function ($attachment) {
+                return [
+                    'id' => $attachment->id,
+                    'filename' => $attachment->filename,
+                    'size' => $attachment->size,
+                    'type' => $attachment->type,
+                ];
+            })->toArray(),
+        ];
+
+        return response()->json([
+            'data' => [
+                'letter' => $transformedLetter,
+                'recipients' => $recipients,
+                'stats' => [
+                    'total' => $recipients->count(),
+                    'completed' => $recipients->where('status', 'completed')->count(),
+                    'in_progress' => $recipients->where('status', 'in_progress')->count(),
+                    'pending' => $recipients->where('status', 'pending')->count(),
+                ]
+            ]
+        ]);
+    }
+
+    /**
+     * Get response history for a specific recipient
+     */
+    public function tindakLanjutResponses($letterId, $recipientId, $recipientType)
+    {
+        $query = LetterDisposition::where('letter_id', $letterId);
+
+        if ($recipientType === 'user') {
+            $query->where('to_user_id', $recipientId);
+        } else {
+            $query->where('to_department_id', $recipientId);
+        }
+
+        $responses = $query->with(['fromUser', 'toUser', 'toDepartment'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json(['data' => $responses]);
     }
 
     public function arsipSuratTugas()
@@ -311,7 +601,15 @@ class RektoratController extends Controller
         $deptId = $request->user()?->department_id;
         $userId = $request->user()?->id;
 
+        // Dapatkan ID dari letter_type Surat Tugas (ST) untuk dikecualikan
+        $suratTugasTypeId = \App\Models\LetterType::where('code', 'ST')->value('id');
+
         $query = Letter::query()
+            ->whereNull('archived_at') // Exclude archived letters
+            // Exclude Surat Tugas (ST) from incoming letters
+            ->when($suratTugasTypeId, function($q) use ($suratTugasTypeId) {
+                $q->where('letter_type_id', '!=', $suratTugasTypeId);
+            })
             ->where(function($q) use ($deptId, $userId){
                 $q->where(function($w) use ($deptId){
                     $w->where('direction', 'incoming')
@@ -326,7 +624,7 @@ class RektoratController extends Controller
                     $s->where('user_id',$userId);
                 });
             })
-            ->with(['letterType:id,code,name', 'fromDepartment:id,name,code', 'toDepartment:id,name,code', 'dispositions:id,letter_id,status'])
+            ->with(['letterType:id,code,name', 'fromDepartment:id,name,code', 'toDepartment:id,name,code', 'dispositions:id,letter_id,status', 'signatures', 'attachments'])
             ->withCount(['attachments', 'dispositions']);
 
         if ($s = trim($request->get('q', ''))) {
@@ -367,7 +665,7 @@ class RektoratController extends Controller
 
         $letters = $query->paginate($perPage);
 
-    $collection = collect($letters->items())->map(fn($l)=>$this->transformLetter($l));
+        $collection = collect($letters->items())->map(fn($l)=>$this->transformLetter($l));
         return response()->json([
             'data' => $collection,
             'meta' => [
@@ -387,6 +685,7 @@ class RektoratController extends Controller
             'letterType:id,code,name',
             'fromDepartment:id,name,code',
             'toDepartment:id,name,code',
+            'signatures',
             'attachments:id,letter_id,original_name,file_name,file_path,file_type,file_size,created_at,description,uploaded_by',
             'dispositions.fromUser:id,name,position',
             'dispositions.toUser:id,name,position',
@@ -423,18 +722,36 @@ class RektoratController extends Controller
     public function incomingDispositionsStore(Request $request, Letter $letter)
     {
         if (!$this->visibleToRektor($request, $letter)) abort(404);
+        
         $data = $request->validate([
-            'to_user_id' => 'required|exists:users,id',
+            'to_user_id' => 'nullable|exists:users,id',
             'to_department_id' => 'nullable|exists:departments,id',
             'instruction' => 'required|string|min:5',
             'priority' => 'nullable|in:low,normal,high,urgent',
             'due_date' => 'nullable|date|after_or_equal:today',
         ]);
+        
+        // Validasi: minimal salah satu harus diisi (user atau department)
+        if (empty($data['to_user_id']) && empty($data['to_department_id'])) {
+            return response()->json([
+                'message' => 'Pilih penerima disposisi (User atau Departemen)'
+            ], 422);
+        }
+        
+        // Validasi: tidak boleh keduanya diisi
+        if (!empty($data['to_user_id']) && !empty($data['to_department_id'])) {
+            return response()->json([
+                'message' => 'Pilih salah satu: User atau Departemen, tidak boleh keduanya'
+            ], 422);
+        }
+        
         $data['priority'] = $data['priority'] ?? 'normal';
         $data['letter_id'] = $letter->id;
         $data['from_user_id'] = $request->user()->id;
+        
         $disposition = LetterDisposition::create($data);
-        return response()->json(['message' => 'Disposition created','data'=>$disposition->load(['fromUser:id,name','toUser:id,name'])], 201);
+        
+        return response()->json(['message' => 'Disposition created','data'=>$disposition->load(['fromUser:id,name','toUser:id,name','toDepartment:id,name'])], 201);
     }
 
     /** List attachments for incoming letter. */
@@ -526,21 +843,38 @@ class RektoratController extends Controller
     public function incomingSignaturesStore(Request $request, Letter $letter)
     {
         if (!$this->visibleToRektor($request, $letter)) abort(404);
+        
         $data = $request->validate([
             'signature_type' => 'required|in:digital,electronic',
             'signature_data' => 'nullable|string',
+            'signature_file' => 'nullable|file|mimes:png,jpg,jpeg|max:2048',
             'notes' => 'nullable|string|max:500'
         ]);
+        
+        $signaturePath = null;
+        $signatureData = $data['signature_data'] ?? null;
+        
+        // Handle file upload
+        if ($request->hasFile('signature_file')) {
+            $file = $request->file('signature_file');
+            $filename = 'signature_' . $letter->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('signatures', $filename, 'public');
+            $signaturePath = $path;
+            $signatureData = null; // Clear signature_data if file is uploaded
+        }
+        
         $signature = $letter->signatures()->create([
             'user_id' => $request->user()->id,
             'signature_type' => $data['signature_type'],
-            'signature_data' => $data['signature_data'] ?? null,
+            'signature_path' => $signaturePath,
+            'signature_data' => $signatureData,
             'signed_at' => now(),
             'status' => 'signed',
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
             'notes' => $data['notes'] ?? null,
         ]);
+        
         return response()->json(['message'=>'Letter signed','data'=>$signature], 201);
     }
 
@@ -564,6 +898,104 @@ class RektoratController extends Controller
         return response()->json(['data'=>$users]);
     }
 
+    /** Archive incoming letter (only Surat Tugas) */
+    public function incomingArchive(Request $request, Letter $letter)
+    {
+        // Validasi bahwa letter adalah Surat Tugas (letter_type_id = 3)
+        if ($letter->letter_type_id !== 3) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya Surat Tugas yang bisa diarsipkan'
+            ], 400);
+        }
+
+        try {
+            // Set archived_at timestamp
+            $letter->update(['archived_at' => now()]);
+            
+            Log::info('Letter archived', [
+                'letter_id' => $letter->id,
+                'letter_number' => $letter->letter_number,
+                'letter_type' => 'Surat Tugas',
+                'archived_at' => $letter->archived_at
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Surat Tugas berhasil diarsipkan',
+                'data' => $this->transformLetter($letter)
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to archive letter', [
+                'letter_id' => $letter->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengarsipkan surat: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /** Unarchive (Pulihkan) archived letter - only Surat Tugas */
+    public function incomingUnarchive(Request $request, Letter $letter)
+    {
+        // Validasi bahwa letter adalah Surat Tugas (letter_type_id = 3)
+        if ($letter->letter_type_id !== 3) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya Surat Tugas yang bisa dipulihkan'
+            ], 400);
+        }
+
+        // Validasi bahwa surat sudah diarsipkan
+        if (is_null($letter->archived_at)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Surat ini belum diarsipkan'
+            ], 400);
+        }
+
+        try {
+            // Set archived_at to null (unarchive)
+            $letter->update(['archived_at' => null]);
+            
+            Log::info('Letter unarchived', [
+                'letter_id' => $letter->id,
+                'letter_number' => $letter->letter_number,
+                'letter_type' => 'Surat Tugas',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Surat Tugas berhasil dipulihkan',
+                'data' => $this->transformLetter($letter)
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to unarchive letter', [
+                'letter_id' => $letter->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memulihkan surat: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /** List departments for disposition */
+    public function getDepartments(Request $request)
+    {
+        $departments = Department::query()
+            ->where('is_active', true)
+            ->select('id', 'name', 'code', 'type')
+            ->orderBy('name')
+            ->get();
+        return response()->json($departments);
+    }
+
     /**
      * Transform model Letter menjadi struktur yang dibutuhkan FE.
      */
@@ -578,21 +1010,55 @@ class RektoratController extends Controller
             $displayStatus = 'review';
         }
 
+        // Parse metadata dari notes
+        $metadata = [];
+        if ($letter->notes && is_string($letter->notes)) {
+            $decoded = json_decode($letter->notes, true);
+            if (is_string($decoded)) {
+                $metadata = json_decode($decoded, true) ?? [];
+            } else {
+                $metadata = $decoded ?? [];
+            }
+        } elseif (is_array($letter->notes)) {
+            $metadata = $letter->notes;
+        }
+
         $data = [
             'id' => $letter->id,
             'number' => $letter->letter_number,
             'subject' => $letter->subject,
+            'perihal' => $letter->subject, // Alias untuk frontend
             'from' => $letter->sender_name ?: ($letter->fromDepartment->name ?? null),
             'date' => optional($letter->letter_date)->format('Y-m-d'),
+            'tanggal' => optional($letter->letter_date)->format('Y-m-d'), // Alias untuk frontend
             'priority' => $letter->priority,
             'status' => $displayStatus,
+            'konten' => $letter->content, // Konten HTML dari editor
+            'tujuanInternal' => $metadata['tujuanInternal'] ?? [],
+            'tujuanExternal' => $metadata['tujuanExternal'] ?? [],
+            'agenda' => $letter->agenda_number ?? null,
+            'notes' => $letter->notes,
+            'metadata' => $metadata,
             'attachments' => $letter->attachments_count ?? ($letter->attachments?->count() ?? 0),
             'dispositions' => $letter->dispositions_count ?? ($dispositions->count()),
+            'letter_type' => $letter->letterType ? [
+                'id' => $letter->letterType->id,
+                'code' => $letter->letterType->code,
+                'name' => $letter->letterType->name,
+            ] : null,
+            'signature' => $letter->signatures?->first() ? [
+                'signer_name' => $letter->signatures->first()->signer_name,
+                'signer_title' => $letter->signatures->first()->signer_title,
+                'signature_data' => $letter->signatures->first()->signature_data,
+                'signature_path' => $letter->signatures->first()->signature_path,
+                'signed_at' => optional($letter->signatures->first()->created_at)->format('Y-m-d H:i:s'),
+            ] : null,
         ];
 
         if ($includeRelations) {
             $data['attachments_list'] = $letter->attachments?->map(fn($a)=>[
                 'id'=>$a->id,
+                'filename'=>$a->original_name,
                 'name'=>$a->original_name,
                 'size'=>$a->file_size,
                 'type'=>$a->file_type,
@@ -606,6 +1072,16 @@ class RektoratController extends Controller
                 'from_user'=>$d->fromUser?->name,
                 'due_date'=>optional($d->due_date)->format('Y-m-d'),
             ])->values();
+        } else {
+            // Tambahkan attachments list jika relasi sudah dimuat
+            if ($letter->relationLoaded('attachments')) {
+                $data['attachments'] = $letter->attachments->map(fn($a)=>[
+                    'id'=>$a->id,
+                    'filename'=>$a->original_name,
+                    'size'=>$a->file_size,
+                    'type'=>$a->file_type,
+                ])->values();
+            }
         }
 
         return $data;
@@ -629,5 +1105,53 @@ class RektoratController extends Controller
         $letter = $disposition->letter;
         if (!$letter) return false;
         return $this->visibleToRektor($request, $letter);
+    }
+
+    /**
+     * API: Get list of all active departments
+     */
+    public function departmentsIndex()
+    {
+        $departments = Department::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'type']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $departments
+        ]);
+    }
+
+    /**
+     * API: Get list of all active users
+     */
+    public function usersIndex()
+    {
+        $users = User::where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'department_id']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $users
+        ]);
+    }
+
+    /**
+     * Determine overall status of a letter
+     */
+    private function determineOverallStatus($letter): string
+    {
+        if ($letter->status === 'draft') {
+            return 'draft';
+        } elseif ($letter->signatures->isEmpty()) {
+            return 'need_signature';
+        } elseif ($letter->status === 'published') {
+            return 'published';
+        } elseif ($letter->status === 'archived') {
+            return 'archived';
+        } else {
+            return 'signed';
+        }
     }
 }
